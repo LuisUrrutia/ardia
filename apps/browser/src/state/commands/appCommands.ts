@@ -52,7 +52,10 @@ export async function diagnostics(): Promise<string> {
   ].join("\n");
 }
 
+let finishingPerformanceRecording: Promise<void> | null = null;
+
 async function recordPerformanceIssue() {
+  if (finishingPerformanceRecording) return;
   if (await isTracing()) return finishPerformanceRecording(true);
   const start = await confirm({
     title: "Record a performance issue?",
@@ -62,7 +65,14 @@ async function recordPerformanceIssue() {
   useBrowser.getState().setPerformanceRecording(true);
 }
 
-async function finishPerformanceRecording(keep: boolean) {
-  const path = await endTracing(keep).finally(() => useBrowser.getState().setPerformanceRecording(false));
-  if (path) void revealFile(path);
+function finishPerformanceRecording(keep: boolean) {
+  finishingPerformanceRecording ??= endTracing(keep)
+    .then((path) => {
+      if (path) void revealFile(path);
+    })
+    .finally(() => {
+      finishingPerformanceRecording = null;
+      useBrowser.getState().setPerformanceRecording(false);
+    });
+  return finishingPerformanceRecording;
 }
