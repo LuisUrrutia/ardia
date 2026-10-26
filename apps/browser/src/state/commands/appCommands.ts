@@ -13,7 +13,8 @@ import type { AppCommand } from "./commandCatalog";
 export const APP_COMMAND_HANDLERS: Readonly<Record<AppCommand, (windowId: string | null) => void>> = {
   sendFeedback: (windowId) => void sendFeedback(windowId),
   copyDiagnostics: () => void diagnostics().then(copyText),
-  recordPerformanceIssue: () => void recordPerformanceIssue(),
+  recordPerformanceIssue: (windowId) => void recordPerformanceIssue(windowId),
+  discardPerformanceRecording: () => void finishPerformanceRecording(false),
   showOnboarding: (windowId) => startOnboarding(windowId),
   toolTour: (windowId) => void startToolTour(windowId),
   videoTour: (windowId) => openVideoTour(windowId),
@@ -51,14 +52,18 @@ export async function diagnostics(): Promise<string> {
   ].join("\n");
 }
 
-async function recordPerformanceIssue() {
-  if (await isTracing()) return;
+async function recordPerformanceIssue(windowId?: string | null) {
+  if (await isTracing()) return finishPerformanceRecording(true);
   const start = await confirm({
     title: "Record a performance issue?",
-    message: "Ardia records what the engine does while you reproduce the problem. The recording is saved to your Downloads folder.",
-    confirmTitle: "Start Recording" });
+    message: "Ardia records what the engine does while you reproduce the problem. When you're done, choose Help › Stop Performance Recording. The recording is saved to your Downloads folder.",
+    confirmTitle: "Start Recording",
+    windowId: windowId ?? undefined });
   if (!start.confirmed || !(await beginTracing())) return;
-  const stop = await confirm({ title: "Recording…", message: "Reproduce the problem now, then click Stop.", confirmTitle: "Stop", cancelTitle: "Discard" });
-  const path = await endTracing(stop.confirmed);
+  useBrowser.getState().setPerformanceRecording(true);
+}
+
+async function finishPerformanceRecording(keep: boolean) {
+  const path = await endTracing(keep).finally(() => useBrowser.getState().setPerformanceRecording(false));
   if (path) void revealFile(path);
 }
