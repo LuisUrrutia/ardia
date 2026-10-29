@@ -2,7 +2,7 @@ import { onWindowEvent } from "../../platform/windows";
 import { everySlowly } from "../../platform/slowTimers";
 import { useBrowser } from "../browser/store";
 import { activeTabId, viewTabIds } from "../browser/model";
-import { adoptLegacyAccounts, forgetProfileAccounts, legacyAdoption, SOURCES } from "./sources";
+import { adoptLegacyAccounts, forgetMissingProfiles, legacyAdoption, SOURCES } from "./sources";
 import { applyFetch, createFolder, finishCompleting, live, markRead, removeFolder, setStatus, unhide, useLive } from "./store";
 import { LiveError, type CompletionState, type LiveFolderKind, type LiveItem, type LiveSourceId, type PullRequestSection } from "./types";
 
@@ -179,8 +179,9 @@ export function startLiveEngine() {
   useBrowser.subscribe((s, prev) => {
     if (s.profiles === prev.profiles) return;
     for (const f of Object.values(live().folders)) if (!s.profiles[f.profileId]) removeFolder(f.id);
-    for (const profileId of Object.keys(live().accounts)) if (!s.profiles[profileId]) void forgetProfileAccounts(profileId);
+    forgetMissingProfiles(Object.keys(prev.profiles));
   });
+  forgetMissingProfiles();
 
   if (Object.keys(live().legacyAccounts).length) void adoptLegacyAccounts(Object.keys(useBrowser.getState().profiles));
 
