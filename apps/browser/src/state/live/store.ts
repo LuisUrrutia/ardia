@@ -1,9 +1,9 @@
 import { readDocument, saveDocument, writeDocument } from "../../platform/documents";
 import { create } from "zustand";
-import { withLegacyAuth } from "./legacyAuth";
+import { DOC, DOC_MIGRATIONS, DOC_VERSION } from "./liveDocument";
 import { repoKey, stackMembers } from "./rows";
 import type { CompletedItem, CompletionState, FolderStatus, LegacyAccount, LiveAccount, LiveFolder, LiveFolderKind, LiveItem, LiveSourceId, ProfileAccounts } from "./types";
-import { parseSaved, unchanged, versionedJson, type Migrations } from "../../lib/savedDocument";
+import { parseSaved, versionedJson } from "../../lib/savedDocument";
 import { DEFAULT_COUNTDOWN_LEAD, keepDismissedNow, type DismissedNow } from "./meetings";
 
 export type LiveConfig = {
@@ -68,16 +68,6 @@ export const DEFAULT_CALENDAR: CalendarSettings = {
   prompted: false,
 };
 
-const DOC = "live.json";
-const DOC_VERSION = 3;
-const DOC_MIGRATIONS: Migrations = {
-  0: unchanged,
-  1: (doc) => ({
-    ...doc,
-    folders: Object.fromEntries(Object.entries((doc.folders ?? {}) as Record<string, object>).map(([id, f]) => [id, { showNewRepos: true, shownRepos: [], ...f }])),
-  }),
-  2: (doc) => ({ ...doc, accounts: {}, legacyAccounts: withLegacyAuth(doc.accounts, doc.config) }),
-};
 const PERSISTED = ["folders", "folderOrder", "items", "known", "unread", "hidden", "repoHidden", "completed", "expandedStacks", "accounts", "legacyAccounts", "config", "calendar", "meetingGroups", "dismissedAlerts", "dismissedNow"] as const;
 
 function load(): Partial<LiveState> {
