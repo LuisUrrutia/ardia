@@ -113,6 +113,7 @@ const windowsModule: Modules["ArdiaAppWindows"] = {
   dragPreviewEnd: () => Promise.resolve(),
   raiseView: () => Promise.resolve(),
   windowFrame: () => Promise.resolve(null),
+  frameCornerRadius: () => Promise.resolve(0),
   replyToTerminate: () => Promise.resolve(),
 };
 
@@ -135,6 +136,7 @@ const focus: Modules["ArdiaFocus"] = {
 const menus: Modules["ArdiaMenus"] = {
   addListener: shellEvents.addListener,
   showMenu: () => Promise.resolve(null),
+  updateMenu: () => Promise.resolve(),
   setMenuState: () => Promise.resolve(),
   setMenuBookmarks: () => Promise.resolve(),
   menuShortcuts: () => Promise.resolve([]),

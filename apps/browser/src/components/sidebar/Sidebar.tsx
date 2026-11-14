@@ -19,8 +19,7 @@ import { SidebarDropArea } from "./SidebarDropArea";
 import { FolderPanel } from "./FolderPanel";
 import { dismissHover, dismissHoverIn } from "../../state/sidebar/hover";
 import { PinFieldZone, PinSlotZone } from "./PinnedGrid";
-import { ResizeHandle } from "./ResizeHandle";
-import { bottomFieldBand, SIDEBAR_FIELD, SIDEBAR_FIELD_BOTTOM, SIDEBAR_FOOTER_DOWNLOADS, sidebarHeaderWithField } from "./geometry";
+import { bottomFieldBand, SIDEBAR_FIELD, SIDEBAR_FIELD_BOTTOM, SIDEBAR_FOOTER_DOWNLOADS, sidebarHeaderOf } from "./geometry";
 import { useNewTabAtTop, useSidebarField, useSidebarPart } from "../../state/sidebar/chrome";
 import { closeFolderPanel } from "../../state/sidebar/tileFolderUi";
 import { openSidebarMenu } from "../../state/sidebar/menus";
@@ -46,7 +45,7 @@ export function Sidebar({ width }: { width: number }) {
   const addressBar = useAddressBarInSidebar();
   const lightsY = useToolbarLightsCenter()[1];
   const field = useSidebarField();
-  const header = field === "top" ? sidebarHeaderWithField() : layout.sidebarHeader;
+  const header = sidebarHeaderOf(addressBar, lightsY, field === "top");
   const downloadsShown = useSidebarPart("downloads");
   const hasDownloads = useHasDownloads(windowId) && downloadsShown;
   const profileShown = useSidebarPart("profile");
@@ -142,7 +141,7 @@ export function Sidebar({ width }: { width: number }) {
                     {field === "top" ? <SidebarAddressRow width={width} top={SIDEBAR_FIELD.top} /> : null}
                   </>
                 ) : (
-                  <View pointerEvents="box-none" style={{ height: layout.sidebarHeader, flexDirection: "row", alignItems: "flex-start", paddingLeft: PROFILE_INDICATOR_X, paddingRight: HEADER_RIGHT, paddingTop: lightsY - 17 }}>
+                  <View pointerEvents="box-none" style={{ height: header, flexDirection: "row", alignItems: "flex-start", paddingLeft: PROFILE_INDICATOR_X, paddingRight: HEADER_RIGHT, paddingTop: lightsY - 17 }}>
                     {profileShown ? <ProfileIndicator room={width - PROFILE_INDICATOR_X - HEADER_RIGHT - (hasDownloads ? SIDEBAR_FOOTER_DOWNLOADS.size + 2 : 0)} /> : null}
                     <View pointerEvents="none" style={{ flex: 1 }} />
                     {hasDownloads ? <DownloadsButton windowId={windowId} /> : null}
@@ -151,7 +150,6 @@ export function Sidebar({ width }: { width: number }) {
               </View>
             </TintInk>
 
-            <ResizeHandle windowId={windowId} />
             {ghost && !ghost.landing && nothingPinned ? (
               field === "top" ? (
                 <PinFieldZone top={SIDEBAR_FIELD.top} height={SIDEBAR_FIELD.height} />

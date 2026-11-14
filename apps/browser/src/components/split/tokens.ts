@@ -31,6 +31,8 @@ export const zoneRadius = () => radius.hero;
 export const ZONE_DASH_INSET = 9.5;
 export const zoneDashRadius = () => concentric(radius.hero, ZONE_DASH_INSET);
 
+export const FOCUS_RING = { width: 2, gap: 1 } as const;
+
 export const ZONE_SLIDE_MS = 110;
 
 export const SPLIT_MOTION = {

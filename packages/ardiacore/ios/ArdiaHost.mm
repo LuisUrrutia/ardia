@@ -399,6 +399,7 @@ static NSDictionary<NSString *, id> *OffscreenRefusal(NSString *reason) {
       @"height" : @(screen.frame.size.height),
     }];
   }
+  if (ArdiaLaunchConfig.shared.background) return sources;
   NSArray *windows = CFBridgingRelease(
       CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements, kCGNullWindowID));
   for (NSDictionary *w in windows) {
@@ -424,7 +425,15 @@ static NSDictionary<NSString *, id> *OffscreenRefusal(NSString *reason) {
 + (BOOL)screenRecordingAllowed {
   NSString *answer = [ArdiaLaunchConfig.shared testValue:@"screenRecording"];
   if (answer.length) return [answer isEqualToString:@"allowed"];
+  if (ArdiaLaunchConfig.shared.background) return NO;
   return CGPreflightScreenCaptureAccess();
+}
+
++ (BOOL)mayCaptureDesktopSource:(NSString *)sourceId {
+  if (!ArdiaLaunchConfig.shared.background) return YES;
+  if (![sourceId hasPrefix:@"screen:"] && ![sourceId hasPrefix:@"window:"]) return YES;
+  NSLog(@"[ardia] background mode: %@ capture refused, it would ask macOS for Screen Recording", [sourceId componentsSeparatedByString:@":"].firstObject);
+  return NO;
 }
 
 + (BOOL)requestScreenRecording {

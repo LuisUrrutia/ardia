@@ -85,6 +85,8 @@ typedef NS_ENUM(NSInteger, ArdiaPiPEdge) { ArdiaPiPEdgeNone = 0, ArdiaPiPEdgeLef
   __weak NSScreen *_dragHome;
   NSDictionary *_lastDrag;
   NSDictionary *_lastRelease;
+  NSDictionary *_lastSkip;
+  NSInteger _skips;
   NSDictionary *_lastSwipe;
   NSMutableDictionary *_lastThrow;
   NSDictionary *_lastScreenFit;
@@ -130,6 +132,11 @@ typedef NS_ENUM(NSInteger, ArdiaPiPEdge) { ArdiaPiPEdgeNone = 0, ArdiaPiPEdgeLef
 - (void)dragEnded:(NSEvent *)event;
 - (void)devSwipe:(NSArray<NSString *> *)args;
 - (void)devDrag:(NSArray<NSString *> *)args;
+@end
+
+@interface ArdiaPiPController (Skip)
+- (BOOL)skipBy:(double)seconds at:(NSPoint)point clickCount:(NSInteger)clickCount;
+- (NSDictionary *)skipInfo;
 @end
 
 @interface ArdiaPiPController (SelfTest)

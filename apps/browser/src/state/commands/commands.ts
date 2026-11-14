@@ -21,8 +21,10 @@ import {
   toggleSiteMute,
 } from "../browser/actions";
 import { bookmarkAllTabs, bookmarkTab } from "../bookmarks/actions";
+import { isBookmarklet, runBookmarklet } from "../bookmarks/bookmarklets";
 import { exportBookmarksFromWindow } from "../bookmarks/exportHtml";
 import { requestClearData } from "../profiles/clearDataRequest";
+import { showHistory } from "../history/showHistory";
 import { openInternalPage } from "../pages/urls";
 import { isUtilityWindowId, openImport, openSettings, SETTINGS_WINDOW_ID } from "../settings/settingsWindows";
 import { focusSettingsSearch } from "../settings/searchState";
@@ -244,7 +246,6 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent, 
     case "zoomReset":
       return page ? void web?.zoomStep(0) : undefined;
     case "devTools":
-      return void web?.showDevTools();
     case "toggleDevTools":
       return void web?.showDevTools("toggle");
     case "inspectElements":
@@ -296,6 +297,7 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent, 
       return page && arg ? void addBookmarkToFolder(windowId, page.id, arg) : undefined;
     case "openBookmark": {
       const node = arg ? s.bookmarks.nodes[arg] : undefined;
+      if (node?.kind === "url" && isBookmarklet(node.url)) return void runBookmarklet(node.url, windowId, tabId);
       return node?.kind === "url" && tab ? s.navigate(tab.id, node.url) : undefined;
     }
     case "togglePageEngine":
@@ -307,7 +309,7 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent, 
     case "cast":
       return void toggleCastPicker(windowId, tabId);
     case "showHistory":
-      return openInternalPage("history", windowId);
+      return showHistory(windowId);
     case "clearBrowsingData":
       openInternalPage("history", windowId);
       return requestClearData(windowId);

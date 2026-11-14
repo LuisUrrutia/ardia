@@ -1,10 +1,11 @@
 import { memo, useMemo } from "react";
 import { Animated, View } from "react-native";
 import { radius, Symbol } from "../ui";
-import { GlassGroup, useGlass } from "../ui/Glass";
+import { GlassGroup } from "../ui/Glass";
 import { layout, useTheme } from "../ui/theme";
 import { useSidebarField } from "../../state/sidebar/chrome";
-import { listTopGap } from "./geometry";
+import { useAddressBarInSidebar, useToolbarLightsCenter } from "../../state/windows/layout";
+import { firstRowTopOf, listTopGap } from "./geometry";
 import { useIsActiveTab, useSettings, useTab, useWindowId } from "../../state/browser/hooks";
 import { useIsSelected } from "../../state/pins/hooks";
 import { NextMeetingBadge } from "../live/NextMeetingBadge";
@@ -95,6 +96,7 @@ export function PinSlotZone() {
   const active = useDropPins();
   const gap = controller?.items.get(tailKey("tiles"))?.gap;
   const opacity = gap ? gap.interpolate({ inputRange: [0, pinSlotPitch()], outputRange: [0, 1], extrapolate: "clamp" }) : active ? 1 : 0;
+  const firstRowTop = firstRowTopOf(useAddressBarInSidebar(), useToolbarLightsCenter()[1], false);
   return (
     <>
       <View
@@ -108,7 +110,7 @@ export function PinSlotZone() {
           left: layout.sidebarInset,
           right: layout.sidebarInset,
           top: 0,
-          height: active ? layout.pinnedTop + layout.pinnedHeight : layout.pinnedTop - layout.rowGap,
+          height: active ? firstRowTop + layout.pinnedHeight : firstRowTop - layout.rowGap,
         }}
       />
       <Animated.View
@@ -117,7 +119,7 @@ export function PinSlotZone() {
           position: "absolute",
           left: layout.sidebarInset,
           right: layout.sidebarInset,
-          top: layout.pinnedTop,
+          top: firstRowTop,
           height: layout.pinnedHeight,
           opacity,
           borderRadius: radius.pinned,
@@ -148,7 +150,6 @@ const PinnedTile = memo(function PinnedTile({ tabId, width, sliding, x, y }: { t
   const { wrapper, handle, dragging } = useDragItem(entryKey("tab", tabId), { kind: "tile", tabIds: [tabId], section: "tiles" });
   const target = useFolderTarget(entryKey("tab", tabId));
   const position = useSlotPosition(x, y, width, sliding, dragging);
-  const glass = useGlass();
   const overlays = useMemo(
     () => (
       <>
@@ -170,10 +171,10 @@ const PinnedTile = memo(function PinnedTile({ tabId, width, sliding, x, y }: { t
       >
         <TabPressArea windowId={windowId} tab={tab}>
           {({ pressed }) => (
-            <TileFace tabId={tabId} width={width} active={active} selected={selected} hovered={hovered} pressed={pressed} badge={glass ? overlays : undefined} />
+            <TileFace tabId={tabId} width={width} active={active} selected={selected} hovered={hovered} pressed={pressed} />
           )}
         </TabPressArea>
-        {glass ? null : overlays}
+        {overlays}
       </View>
     </Animated.View>
   );

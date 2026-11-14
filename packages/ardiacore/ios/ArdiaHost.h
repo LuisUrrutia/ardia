@@ -11,6 +11,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property(class, readonly) NSArray<NSDictionary<NSString *, id> *> *displayMediaSources;
 @property(class, readonly) BOOL screenRecordingAllowed;
 + (BOOL)requestScreenRecording;
++ (BOOL)mayCaptureDesktopSource:(NSString *)sourceId;
 + (void)resolveExternalApp:(NSString *)requestId open:(BOOL)open remember:(BOOL)remember NS_SWIFT_NAME(resolveExternalApp(_:open:remember:));
 + (void)deviceChooser:(int)chooserId select:(int)index NS_SWIFT_NAME(deviceChooser(_:select:));
 + (void)deviceChooser:(int)chooserId action:(NSString *)action NS_SWIFT_NAME(deviceChooser(_:action:));
@@ -62,6 +63,8 @@ NS_ASSUME_NONNULL_BEGIN
 + (nullable NSDictionary<NSString *, id> *)senderOfOpenedURL:(NSString *)url NS_SWIFT_NAME(senderOfOpenedURL(_:));
 @property(class, readonly) BOOL holdsIncomingLinks;
 @property(class, readonly) NSDictionary<NSString *, NSNumber *> *launchMarks;
+@property(class, readonly, nullable) NSNumber *launchedHidden;
++ (void)markMainStarted;
 + (void)setHoldIncomingLinks:(BOOL)hold hooksStamp:(nullable NSString *)hooksStamp NS_SWIFT_NAME(setHoldIncomingLinks(_:hooksStamp:));
 + (NSString *)fileStampOfDescriptor:(int)fd NS_SWIFT_NAME(fileStamp(ofDescriptor:));
 @property(class, readonly) NSString *missingFileStamp;
