@@ -4,9 +4,17 @@ import json
 import time
 from dataclasses import dataclass, field
 
-from ardia_cli.browse.errors import BrowseError, CdpError, CdpTimeout, Gated, OutcomeUnknown
+from ardia_cli.browse.errors import BrowseError, CdpError, CdpTimeout, Gated, NotFocusable, OutcomeUnknown
 from ardia_cli.browse.inputs import Input
 from ardia_cli.browse.js import LIBRARY
+
+FOCUS_INSIDE = """(el) => {
+  const fields = 'input:not([type=hidden]):not([disabled]), textarea:not([disabled]), select:not([disabled]), [contenteditable=""], [contenteditable=true], [tabindex]:not([tabindex="-1"])';
+  const target = el.matches(fields) ? el : el.querySelector(fields) || el;
+  if (target.focus) target.focus();
+  const active = document.activeElement;
+  return !!active && active !== document.body && (active === el || el.contains(active));
+}"""
 
 WORLD_NAME = "ardia-browse"
 CONSOLE_LIMIT = 1000
@@ -275,7 +283,7 @@ class Page:
         if frame_id not in self.frames:
             await self.refresh_frames()
             if frame_id not in self.frames:
-                raise BrowseError("That frame is gone. Run `ardia browse frame main` or snapshot again")
+                raise BrowseError("That frame is gone. Run `ardia browse frame main` or snapshot again", code="frame_gone")
         loader = self.loader(frame_id)
         cached = self.worlds.get(frame_id)
         if cached and cached[0] == loader:
@@ -319,10 +327,10 @@ class Page:
             if "exceptionDetails" in result:
                 details = result["exceptionDetails"]
                 description = (details.get("exception") or {}).get("description") or details.get("text") or "error"
-                raise BrowseError(description.split("\n    at ")[0])
+                raise BrowseError(description.split("\n    at ")[0], code="page_script_error")
             remote = result.get("result") or {}
             return remote.get("value") if by_value else remote
-        raise BrowseError("the page navigated while reading it; try again")
+        raise BrowseError("the page navigated while reading it; try again", code="page_navigated")
 
     async def element_from(self, remote: dict, frame: str, label: str) -> Element | None:
         if not remote or remote.get("subtype") == "null" or remote.get("type") == "undefined" or "objectId" not in remote:
@@ -384,7 +392,20 @@ class Page:
             raise BrowseError(self.show_hint(), data={"tabId": tab, "use": f"ardia browse tab {tab} --show"}, code="tab_hidden")
 
     async def focus_element(self, element: Element):
-        await self.send("DOM.focus", {"backendNodeId": element.backend_id})
+        try:
+            await self.send("DOM.focus", {"backendNodeId": element.backend_id})
+        except CdpError as error:
+            if "focusable" not in error.cdp_message:
+                raise
+            try:
+                landed = await self.call(FOCUS_INSIDE, element, frame=element.frame)
+            except BrowseError:
+                landed = False
+            if not landed:
+                raise NotFocusable(element.label) from None
+            from ardia_cli import command_metrics
+
+            command_metrics.flag("focused_inner_field", True)
 
     async def enable_runtime(self):
         if not self.runtime_on:

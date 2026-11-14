@@ -80,6 +80,7 @@ export type EngineCalls = {
 
   "profiles.loaded": [{}, { profiles: string[] }];
   "profiles.release": [Profile, null];
+  "profiles.unloadIdle": [Profile, { status: "released" | "pending" | "busy"; tabs: string[]; heldBy?: string }];
   "profiles.deleteData": [Profile, { remaining: string[] }];
   "profiles.clearBrowsingData": [Profile & { types: BrowsingDataType[]; since: number | null }, null];
 
@@ -155,6 +156,9 @@ export type EngineCalls = {
   "contentBlocker.setListEnabled": [{ id: string; enabled: boolean }, null];
   "contentBlocker.isAllowed": [{ host: string }, boolean];
   "contentBlocker.setAllowed": [{ host: string; allowed: boolean }, null];
+  "contentBlocker.hiddenElements": [{ profile: string }, string[]];
+  "contentBlocker.hideElements": [{ profile: string; filters: string[] }, null];
+  "contentBlocker.restoreElements": [{ profile: string; filters: string[] }, null];
   "contentBlocker.devFailNextMessage": [{}, null];
   "contentBlocker.devDelayNextLoad": [{ ms: number }, null];
 

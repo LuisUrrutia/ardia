@@ -1,5 +1,6 @@
 import { APP, type SettingSection, type SettingsEnv } from "./types";
 import type { SettingsPane } from "../../../state/settings/settingsWindows";
+import { newTabOpensOf } from "../../../state/settings/settings";
 
 const inSidebar = (_: unknown, env: SettingsEnv) => !env.top;
 
@@ -140,6 +141,11 @@ export const generalRows = {
           description: "In every window, the tabs slide out of view and come back when you move the pointer to the window's edge. Changing it here resets every window; ⌘S and View › Auto-Hide Tabs hide or show the tabs in one window only.",
           keywords: ["hide tabs", "hide sidebar", "show sidebar", "toggle sidebar", "hide tab bar", "tab strip", "top tabs", "focus mode", "full screen", "zen"],
         },
+        revealTabsOnHover: {
+          title: "Reveal hidden tabs on hover",
+          description: "With Auto-hide tabs on, the tabs slide back over the page while the pointer is at the window's edge. Off, they come back only with ⌘S or View › Auto-Hide Tabs.",
+          keywords: ["hover", "peek", "edge", "reveal", "pop out", "floating sidebar", "compact mode", "shortcut only", "accidental", "zen"],
+        },
         sidebarSide: {
           title: "Sidebar position",
           description: "On the left, as in Dia, or on the right, as in Arc. The window buttons stay at the top left.",
@@ -183,6 +189,11 @@ export const generalRows = {
           description: "A Top App's tile shows a speaker while its tab plays or is muted, a mark while it is in Picture in Picture, and its unread count when unread counts are on. Off, as in Dia, a tile shows only the site's icon.",
           keywords: ["pinned tiles", "favorites", "badges", "indicators", "unread count", "speaker", "audio", "muted", "playing", "clean", "dia"],
         },
+        showTabHoverMenu: {
+          title: "Show tab hover menu",
+          description: "Rest the pointer on a tab or Top App and a card shows its title, address, and Pin, Bookmark, Split and Reset. Off, resting on a tab shows only its full title and site as a plain tooltip, and every one of those actions is in the tab's right-click menu. A playing tab's mini player still shows.",
+          keywords: ["hover", "hover card", "popup", "pop-up", "tooltip", "tab actions", "reset", "distracting", "dia"],
+        },
         fadeUnloadedTabs: {
           advanced: true,
           title: "Fade icons of unloaded tabs",
@@ -203,7 +214,7 @@ export const generalRows = {
           title: "Reuse an empty New Tab page",
           description: "When the tab you're on is still an empty New Tab page, ⌘T, + New Tab and a double-click under the tabs put the cursor in its address field instead of opening another empty tab. Off, each one opens a new tab.",
           keywords: ["blank tab", "empty tab", "reuse", "one new tab", "multiple new tabs", "cmd t"],
-          shown: (settings) => settings.newTabOpens === "page",
+          shown: (settings) => newTabOpensOf(settings) === "page",
         },
         newTabPosition: {
           title: "Add new tabs",
@@ -220,7 +231,7 @@ export const generalRows = {
         appLinksFirst: {
           title: "Put links from other apps first",
           description: "When links from Slack, Mail or any other app open as tabs, not in Little Ardia, they go above your other tabs, just below the pinned ones, whatever Add new tabs says.",
-          keywords: ["external links", "other apps", "slack", "mail", "default browser", "top", "first", "left", "position"],
+          keywords: ["external links", "other apps", "default browser", "top", "first", "left", "position"],
         },
         shareTabsAcrossWindows: {
           title: "Share tabs across windows",

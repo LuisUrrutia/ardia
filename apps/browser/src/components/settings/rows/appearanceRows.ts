@@ -21,6 +21,21 @@ export const appearanceRows = {
       },
     },
     {
+      section: "Sidebar Text",
+      rows: {
+        sidebarTextSize: {
+          title: "Text size",
+          description: "Tab, folder and group titles in the sidebar, with their rows, icons and pinned tiles. Default is Dia's size.",
+          keywords: ["bigger text", "larger text", "large text", "text size", "small text", "readability", "readable", "low vision", "accessibility", "a11y", "interface size", "tab titles", "arc"],
+        },
+        sidebarTextContrast: {
+          title: "Higher contrast text",
+          description: "Full-strength tab titles, and darker or brighter labels, icons and New Tab in the sidebar. On by default when macOS Increase Contrast is on.",
+          keywords: ["contrast", "high contrast", "increase contrast", "grey text", "gray text", "light text", "faint", "readability", "readable", "low vision", "accessibility", "a11y", "wcag", "bold"],
+        },
+      },
+    },
+    {
       section: "Interface Style",
       rows: {
         interfaceStyle: {
@@ -40,6 +55,16 @@ export const appearanceRows = {
           description: "How much of the profile colour the glass takes, from a hint to fully coloured.",
           keywords: ["liquid glass", "tint", "strength", "intensity", "colour", "color", "glossy"],
           shown: (s, env) => !!env.glass && s.interfaceStyle === "glass" && s.glassTintWithTheme,
+        },
+      },
+    },
+    {
+      section: "Minimalism",
+      rows: {
+        minimalismMode: {
+          title: "Minimalism mode",
+          description: "Just a column of tabs and the page, as in the Search browser: no toolbar, the page flat against the sidebar, quiet grey tabs and letter tiles, and ⌘T opens the command bar. ⌘L opens the command bar for the address; back, reload, downloads and extensions stay in the menus and their shortcuts. Turn it off and everything comes back as it was. Also in View › Minimalism Mode, ⌃⌘M.",
+          keywords: ["minimal", "minimalism", "minimalist", "clean", "compact", "zen", "simple", "distraction free", "no toolbar", "hide toolbar", "search browser", "quiet", "focus"],
         },
       },
     },

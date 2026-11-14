@@ -1,5 +1,8 @@
 import { SETTING_SPECS, type Settings, type SettingSpec } from "../settings/settings";
 import { commandBarStartFlags } from "../omnibox/commandBarStart";
+import { lookUse, type LookBlocks } from "../../lib/themeLook";
+import { currentThemeLook } from "../config/basePalette";
+import { systemIncreaseContrast } from "../app/systemContrast";
 
 export const SETTINGS_SNAPSHOT_EVENT = "settings_snapshot";
 
@@ -28,7 +31,7 @@ export function settingsSnapshot(settings: Settings): Record<string, string> {
     out[`setting_${key}`] = value;
     out[`default_${key}`] = fallback;
   }
-  return { ...out, ...commandBarStartFlags(settings.commandBarStart), unread_hidden_sites: String(Array.isArray(settings.unreadHiddenSites) ? settings.unreadHiddenSites.length : 0) };
+  return { ...out, ...commandBarStartFlags(settings.commandBarStart), system_increase_contrast: encode(systemIncreaseContrast())!, unread_hidden_sites: String(Array.isArray(settings.unreadHiddenSites) ? settings.unreadHiddenSites.length : 0) };
 }
 
 export const appIconSetting = (icon: string | null): Record<string, string> =>
@@ -37,3 +40,23 @@ export const appIconSetting = (icon: string | null): Record<string, string> =>
 export const customColorProfiles = (profiles: Record<string, { theme?: unknown }>): Record<string, string> => ({
   custom_color_profiles: String(Object.values(profiles).filter((profile) => !!profile.theme).length),
 });
+
+export function themeFileSnapshot(theme: string | null, blocks: LookBlocks | null): Record<string, string> {
+  const use = lookUse(blocks);
+  const flag = (on: boolean) => (on ? "true" : "false");
+  return {
+    theme_file: flag(theme !== null),
+    theme_type: flag(use.type),
+    theme_metrics: flag(use.metrics),
+    theme_layout: flag(use.layout),
+    theme_icons: flag(use.icons),
+    theme_hidden_parts: String(use.hidden),
+    theme_moved_parts: String(use.moved),
+    theme_icon_overrides: String(use.iconOverrides),
+  };
+}
+
+export function currentThemeFileSnapshot(): Record<string, string> {
+  const { theme, blocks } = currentThemeLook();
+  return themeFileSnapshot(theme, blocks);
+}

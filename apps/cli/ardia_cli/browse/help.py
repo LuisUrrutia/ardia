@@ -9,8 +9,9 @@ Same commands, flags and output (text and --json) as agent-browser, so an agent 
 knows `agent-browser <args>` can type `ardia browse <args>`. It drives the running Ardia
 over the ardia command's control connection (Settings > "Let the ardia command control
 Ardia"), through pydoll. Input is instant unless --humanize. Actions print what they changed
-(nodes with refs, URL, title, the POSTs they caused), a session with no tab uses the user's
-active tab, and text output stops at about 6,000 characters (narrow it with snapshot -i or -s <css>).
+(nodes with refs, URL, title, the POSTs they caused), a session works in background tabs of its
+own (`tab active` picks the user's tab), and text output stops at about 12,000 characters (narrow it
+with snapshot -i or -s <css>).
 
 Core Commands:
   open [url]                 Open url in a new background tab of this session (later opens reuse it)
@@ -20,7 +21,7 @@ Core Commands:
   type <sel> <text>          Type into element
   fill <sel> <text>          Clear, then type (date/time/color/range inputs: set the value; a <select>: pick;
                              a grid cell: open its editor, set, Enter)
-  press <key>                Press key (Enter, Tab, Control+a, Meta+a)
+  press [sel] <key>          Press key (Enter, Tab, Control+a, Meta+a), in <sel> if given
   keydown <key> / keyup <key>  Hold or release a key
   keyboard type <text>       Type at the current focus (humanized keystrokes)
   keyboard inserttext <text> Insert text without key events
@@ -40,7 +41,7 @@ Core Commands:
   eval <js>                  Run JavaScript in the page [-b base64] [--stdin]
   close [--all]              Close the tabs this session opened and end the session
 
-Selectors:   CSS, @e3, text=Save (text="Save" exact), role=button[name="Save"], li:has-text("Ana"), xpath=//a;
+Selectors:   CSS, @e3, text=Save (text="Save" exact), role=button[name="Save"], li:has-text("Ana"), li >> nth=2 (third match; -1 last), main >> text=Save, li:text-is("Ana"), xpath=//a;
              [role=main] also matches <main> and the other implicit roles
 Navigation:  back, forward, reload, pushstate <url>
 Get Info:    get text|html|value|attr <name>|title|url|count|box|styles <sel>
@@ -142,7 +143,7 @@ Examples:
 COMMANDS = {
     "open": "ardia browse open [url] [--enable react-devtools] [--init-script <path>] [--capture-console] [--label name]\n\n"
             "Without a tab, opens a new background tab in Ardia's sidebar (the user's own tab is never navigated\n"
-            "unless the session picked it with `tab <id>`). When the session was using the user's tab, the answer\n"
+            "unless the session picked it with `tab <id>`). When the session was using the user's tab (`tab active`), the answer\n"
             "names both: `→ [t4] is this session's tab now …; `tab t3` goes back`. Later opens navigate the\n"
             "session's tab. A URL without a\n"
             "scheme gets https:// (http:// for localhost). Prints the title and URL, then the page it landed on as a\n"
@@ -197,19 +198,21 @@ COMMANDS = {
               "  ardia browse select @e5 \"Priya Raman\" alex@example.com\n"
               "Prints what it picked and what changed. A disabled target is waited for up to 1.5 s.",
     "type": "ardia browse type <sel> <text> [--no-humanize]\n\nTypes into the element without clearing it.",
-    "press": "ardia browse press <key> [--no-humanize]\n\nKeys: Enter, Tab, Escape, Backspace, Delete, Space, Arrow*, Home, End, PageUp, PageDown, F1-F12.\n"
+    "press": "ardia browse press [<sel>] <key> [--no-humanize]\n\nWith <sel>, focuses that element first. Keys: Enter, Tab, Escape, Backspace, Delete, Space, Arrow*, Home, End, PageUp, PageDown, F1-F12.\n"
              "Modifiers: Control, Alt, Shift, Meta (Meta+a selects all on macOS).",
     "keyboard": "ardia browse keyboard type <text> | inserttext <text>\n\ntype sends humanized keystrokes to the focused element; inserttext inserts at once.",
     "scroll": "ardia browse scroll [up|down|left|right] [px] [-s <sel>] [--no-humanize]\n\nWheel scrolling with momentum, at the mouse position (moved into the page or the container first).",
     "wait": "ardia browse wait <sel|ms> [--state visible|hidden|attached|detached] | --text <t> | --url <glob> |\n"
             "  --load load|domcontentloaded|networkidle | --fn <js> [--timeout ms]\n\n--fn evaluates in the page's main world, like eval. Timeouts default to 25 s.",
-    "screenshot": "ardia browse screenshot [sel] [path] [--full] [--annotate] [--screenshot-format png|jpeg] [--screenshot-quality n]\n\n"
+    "screenshot": "ardia browse screenshot [sel] [path | --out path] [--full] [--annotate] [--screenshot-format png|jpeg] [--screenshot-quality n]\n\n"
                   "--annotate takes an interactive snapshot and draws the numbered labels onto the image (nothing is added\n"
                   "to the page). Without a path it saves under $TMPDIR/ardia-browse/screenshots.",
-    "eval": "ardia browse eval <js> | -b <base64> | --stdin\n\nRuns in the page's main world (the one place, with init scripts and the React hook, that does).",
+    "eval": "ardia browse eval <js> | -b <base64> | --stdin [--out <file>]\n\nRuns in the page's main world (the one place, with init scripts and the React hook, that does).\n"
+            "--out <file> saves the whole value (JSON, or the text as is) and prints a short summary instead.",
     "get": "ardia browse get text|html|value|attr <name>|title|url|count|box|styles <sel>\n\ncdp-url works only with --port or --ws: the real URL carries Ardia's token.",
-    "find": "ardia browse find <role|text|label|placeholder|alt|title|testid|first|last|nth> <value> [action] [text] [--name n] [--exact]\n\n"
-            "Actions: click (default), fill, type, check, uncheck, select, hover, focus, dblclick, text. The found element\n"
+    "find": "ardia browse find <role|text|label|placeholder|alt|title|testid|first|last|nth> <value> [action] [text] [--name n] [--exact|--partial]\n\n"
+            "Actions: click (default), fill, type, press [key] (Enter if none), check, uncheck, select, hover, focus, dblclick,\n"
+            "text. The found element\n"
             "gets the next ref, so later commands can use it.\n\n"
             "find role takes the role and accessible name the snapshot shows, in any order: `find role button\n"
             "click --name Save`, `find role button --name Save click` or `find role button Save click`. A name\n"
@@ -220,7 +223,10 @@ COMMANDS = {
            "list shows the user's tabs too, with the tab-… id `ardia windows` prints when the address pairs them\n"
            "up, and which session opened or uses each. A t1 id is the same in every session and never moves to\n"
            "another tab. Switching changes which tab this session acts on, not what Ardia shows (--show does).\n"
-           "`tab active` picks the tab the user is looking at. close only closes tabs this session opened, and\n"
+           "A session never takes the user's tab on its own: until it opens or picks one, commands that need a\n"
+           "page fail with no_session_tab. `tab active` picks the tab the user is looking at; the session works\n"
+           "in it but won't navigate it (open goes to a background tab of its own) unless picked by id. close only\n"
+           "closes tabs this session opened, and\n"
            "not one another session is using. When Ardia swaps a tab's page (it slept, or crashed and reloaded),\n"
            "the session follows it to the new page.",
     "console": "ardia browse console [--clear]\n\nThe first call turns on the Runtime domain for the session's tab (Chrome then replays earlier\n"
@@ -245,15 +251,18 @@ COMMANDS = {
              "Plain notes per site (host[:port]) for your own agent, in <data dir>/Notes/<site>.md (0600, 8 KB each).\n"
              "Without a site it's the session tab's (--tab <id> for another tab's). - reads stdin. snapshot prints a\n"
              "site's notes first, and so does an action that lands on another site.",
-    "read": "ardia browse read [url...] [--links <pattern>] [-s <selector>] [--stdin] [--limit n] [--timeout ms] [--http] [--list]\n"
-            "ardia browse read -s <list> --scroll [--limit rows] [--match <text>] [--timeout ms]\n\n"
+    "read": "ardia browse read [url...] [--links <pattern>] [-s <selector>] [--stdin] [--limit n] [--timeout ms] [--http] [--list] [--out <file>]\n"
+            "ardia browse read [-s <list>] --scroll [--limit rows] [--match <text>] [--timeout ms]\n\n"
             "Reads each page in a background tab of this session's own (four at a time, through your logins, after its\n"
             "scripts ran) and prints its title, URL and text: the page's <main>, else its body, or what -s matches.\n"
             "Tables and ARIA grids print one row per line, cells split by ` | `, with a note when a grid renders only\n"
             "some of its rows. Tabs close when it's done. With no URL it reads the session's tab. --links <pattern> reads every link on the session's tab whose URL contains the\n"
             "pattern (* matches anything), in page order; --list only prints those links. URLs can also come one per line\n"
-            "on stdin (--stdin or -), and /paths resolve against the session's tab. At most 20 pages unless --limit (100).\n"
-            "Pages share an output cap of 3,000 characters a page (6,000 to 24,000); narrow it with -s or a tighter --links (--json has all).\n"
+            "on stdin (--stdin or -), and /paths resolve against the session's tab. Every URL you name is read (up to 100);\n"
+            "--links finds at most 20 unless --limit (100). A PDF prints its text, page by page.\n"
+            "Pages share an output cap of 6,000 characters a page (12,000 to 36,000), and a cut read is saved whole to a file it\n"
+            "names; narrow it with -s or a tighter --links (--json and > file have all). --out <file> saves every page\n"
+            "(JSON for a .json file, else text) and prints one line per page.\n"
             "--scroll reads a long or virtualized list on the session's tab (-s takes a selector or a ref): it scrolls the\n"
             "list's own scroll box until it stops growing and prints each row once, one per line, in list order, then puts\n"
             "the scroll back. --match keeps rows containing the text (any case); --limit stops after that many rows (1,000;\n"
@@ -261,7 +270,10 @@ COMMANDS = {
             "--http fetches outside the browser instead (no logins, no page scripts; faster on public docs), and so do\n"
             "--llms index|full, --require-md, --raw, --outline and --filter, which also work on the session's tab's URL.\n"
             "Exit 1 when any page failed (its block says why).",
-    "script": "ardia browse script [file.js] [--timeout 90s]   (or the script on stdin)\n\n"
+    "script": "ardia browse script [file.js | '<code>'] [--timeout 90s] [--out <file>]   (or the script on stdin)\n\n"
+              "--out <file> saves the whole returned value (JSON, or a string as is) and prints a summary and the log;\n"
+              "build deliverables from that file instead of copying printed output. `state` is an object the session keeps\n"
+              "between scripts, even past a timeout: push rows to it in long loops and continue in the next script.\n\n"
               "Runs a short JavaScript program that drives pages, so a loop over many pages is one call. It runs in a\n"
               "blank background page of its own, outside the page it drives (no document or window: DOM code goes in\n"
               "page.evaluate), and every page action is one of ardia browse's commands on this session (the same tab,\n"

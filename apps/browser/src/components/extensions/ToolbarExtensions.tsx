@@ -3,11 +3,12 @@ import type { ActionState, InstalledExtension } from "../../state/extensions/sto
 import { Badge, Button, ContextMenuArea, Symbol, useToolbarRowContext } from "../ui";
 import { chooseFromMenu } from "../../state/app/menuChoice";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
-import { Image, View } from "react-native";
+import { Animated, Image, View } from "react-native";
 import { useTheme } from "../ui/theme";
 import type { ToolbarPalette } from "../ui/toolbarColors";
 import { usePages } from "../../state/tabs/pageState";
 import { ink, opacity } from "../ui/tokens";
+import { buttonMotion, usePressScaleMotion } from "../ui/motion";
 import { BADGE_FALLBACK_FILL } from "./tokens";
 import { isLight } from "../../lib/color";
 import { dropToolbarAnchor, setToolbarAnchor } from "../../state/extensions/toolbarAnchors";
@@ -58,6 +59,7 @@ type ToolbarExtensionsProps = {
   top: number;
   right: number;
   limit?: number;
+  onActivate?: () => void;
 };
 
 export const ToolbarExtensions = memo(function ToolbarExtensions(props: ToolbarExtensionsProps) {
@@ -71,6 +73,7 @@ function TabToolbarExtensions({
   top,
   right,
   limit = Infinity,
+  onActivate,
 }: ToolbarExtensionsProps) {
   const { pinned, overflow, routes } = useToolbarExtensions(windowId, limit);
   const ready = usePages((p) => !!p.ready[tabId]);
@@ -79,9 +82,9 @@ function TabToolbarExtensions({
     <View style={{ position: "absolute", top, right, flexDirection: "row", gap: GAP }}>
       {routes.length ? <CastButton windowId={windowId} tabId={tabId} routes={routes} palette={palette} /> : null}
       {pinned.map((ext) => (
-        <ExtensionButton key={ext.id} ext={ext} windowId={windowId} tabId={tabId} ready={ready} palette={palette} />
+        <ExtensionButton key={ext.id} ext={ext} windowId={windowId} tabId={tabId} ready={ready} palette={palette} onActivate={onActivate} />
       ))}
-      {overflow && <OverflowButton windowId={windowId} tabId={tabId} palette={palette} />}
+      {overflow && <OverflowButton windowId={windowId} tabId={tabId} palette={palette} onActivate={onActivate} />}
     </View>
   );
 }
@@ -123,7 +126,7 @@ function useAnchor(windowId: string, tabId: string, slot: string) {
   return { ref, measure };
 }
 
-function ExtensionButton({ ext, windowId, tabId, ready, palette }: { ext: InstalledExtension; windowId: string; tabId: string; ready: boolean; palette: ToolbarPalette }) {
+function ExtensionButton({ ext, windowId, tabId, ready, palette, onActivate }: { ext: InstalledExtension; windowId: string; tabId: string; ready: boolean; palette: ToolbarPalette; onActivate?: () => void }) {
   const fetched = useExtensions((e) => (ready ? e.actions[tabId] : undefined));
   const held = useRef<ActionState | undefined>(undefined);
   if (fetched) held.current = fetched[ext.id];
@@ -135,6 +138,8 @@ function ExtensionButton({ ext, windowId, tabId, ready, palette }: { ext: Instal
   const title = state?.title || ext.actionTitle || ext.name;
   const icon = state?.icon || ext.actionIcon || ext.icon;
   const fill = state?.badgeColor && state.badgeColor !== ink.black ? state.badgeColor : BADGE_FALLBACK_FILL;
+  const pressMotion = usePressScaleMotion(true, buttonMotion.iconPressScale);
+  const scaleStyle = pressMotion.scale ? { transform: [{ scale: pressMotion.scale }] } : undefined;
   return (
     <View ref={ref} onLayout={() => void measure()}>
       <ContextMenuArea onContextMenu={() => void showExtensionMenu(windowId, ext)}>
@@ -144,16 +149,21 @@ function ExtensionButton({ ext, windowId, tabId, ready, palette }: { ext: Instal
           palette={palette}
           active={open}
           tooltip={title}
-          onPress={async () => activateExtension(windowId, ext, await measure(), fetched?.[ext.id], tabId)}
+          onPressIn={pressMotion.onPressIn}
+          onPressOut={pressMotion.onPressOut}
+          onPress={async () => {
+            onActivate?.();
+            return activateExtension(windowId, ext, await measure(), fetched?.[ext.id], tabId);
+          }}
           badge={badge ? <Badge text={badge.slice(0, 4)} size="s" fill={fill} color={state?.badgeTextColor ?? contrastText(fill)} style={BADGE_PLACE} /> : null}
         >
-          {icon ? (
-            <View pointerEvents="none">
+          <Animated.View pointerEvents="none" style={[{ width: GLYPH_BOX, height: GLYPH_BOX, alignItems: "center", justifyContent: "center" }, scaleStyle]}>
+            {icon ? (
               <Image source={{ uri: icon }} style={{ width: IMAGE, height: IMAGE, opacity: dimmed ? opacity.disabled : 1 }} />
-            </View>
-          ) : (
-            <Symbol name="puzzlepiece.extension" size={GLYPH} color={palette.icon} style={{ width: GLYPH_BOX, height: GLYPH_BOX }} />
-          )}
+            ) : (
+              <Symbol name="puzzlepiece.extension" size={GLYPH} color={palette.icon} style={{ width: GLYPH_BOX, height: GLYPH_BOX }} />
+            )}
+          </Animated.View>
         </Button>
       </ContextMenuArea>
     </View>
@@ -183,7 +193,7 @@ function CastButton({ windowId, tabId, routes, palette }: { windowId: string; ta
   );
 }
 
-function OverflowButton({ windowId, tabId, palette }: { windowId: string; tabId: string; palette: ToolbarPalette }) {
+function OverflowButton({ windowId, tabId, palette, onActivate }: { windowId: string; tabId: string; palette: ToolbarPalette; onActivate?: () => void }) {
   const { ref, measure } = useAnchor(windowId, tabId, "*");
   const onPress = async () => {
     const anchor = await measure();
@@ -193,7 +203,10 @@ function OverflowButton({ windowId, tabId, palette }: { windowId: string; tabId:
       ...(enabled.length ? [{ separator: true as const }] : []),
       ...EXTENSION_LIST_ITEMS,
     ]);
-    if (choice && typeof choice === "object") void activateExtension(windowId, choice, anchor, undefined, tabId);
+    if (choice && typeof choice === "object") {
+      onActivate?.();
+      void activateExtension(windowId, choice, anchor, undefined, tabId);
+    }
     else runExtensionListChoice(choice, windowId);
   };
   return (

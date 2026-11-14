@@ -33,7 +33,16 @@ export type SystemInfo = {
   forceReleaseNotes?: boolean;
   processStart?: number | null;
   bootTime?: number | null;
-  launchMarks?: { engineStarted?: number; earlyWindowShown?: number; reactNativeStarted?: number } | null;
+  launchMarks?: {
+    mainStarted?: number;
+    startupPrepared?: number;
+    chromiumEntered?: number;
+    engineStarted?: number;
+    earlyWindowShown?: number;
+    reactNativeStarted?: number;
+  } | null;
+  launchedHidden?: boolean | null;
+  loadAverage1m?: number | null;
   inApplicationsFolder?: boolean;
   updatePrewarm?: { build?: string; at?: number; ms?: number; status?: number } | null;
 };
@@ -69,7 +78,14 @@ export type HardwareInfo = {
   hardwareDecode: { av1: boolean; vp9: boolean; hevc: boolean; h264: boolean };
 };
 
-export type DiagnosticsSample = { footprintMB?: number; freeDiskGB?: number };
+export type DiagnosticsSample = {
+  footprintMB?: number;
+  freeDiskGB?: number;
+  cpuMs?: number;
+  wakeups?: number;
+  dragRegionRebuilds?: number;
+  dragRegionStalePresses?: number;
+};
 
 type NativeFrame = { image: string; symbol?: string; symbolOffset?: number; offset?: number };
 

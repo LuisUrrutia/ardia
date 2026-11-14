@@ -62,6 +62,9 @@ class AnimatedValue {
   removeListener(id: string) {
     this.listeners.delete(id);
   }
+  removeAllListeners() {
+    this.listeners.clear();
+  }
   interpolate(config: { inputRange: number[]; outputRange: number[] }) {
     return { config, source: this };
   }
@@ -161,3 +164,9 @@ export const Easing = {
 };
 
 export const AppState = { currentState: "active", addEventListener: () => ({ remove() {} }) };
+
+export const AccessibilityInfo = {
+  isHighContrastEnabled: async () => false,
+  isReduceMotionEnabled: async () => false,
+  addEventListener: () => ({ remove() {} }),
+};

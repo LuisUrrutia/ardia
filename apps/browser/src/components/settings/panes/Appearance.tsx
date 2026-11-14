@@ -5,7 +5,7 @@ import { useTheme } from "../../ui/theme";
 import { useSettings, useTabLayout } from "../../../state/browser/hooks";
 import { updateSettings } from "../../../state/settings/actions";
 import type { Settings } from "../../../state/settings/settings";
-import { Group, Row, SectionHeader } from "../Form";
+import { Group, Row, SectionHeader, SettingToggle } from "../Form";
 import { MiniWindow } from "../MiniWindow";
 import { PictureChoice } from "../PictureChoice";
 import { AmountSlider } from "../ThemeControls";
@@ -15,6 +15,8 @@ import { modePreview, stylePreview } from "../tokens";
 import { useSettingsColors } from "../useSettingsColors";
 import { APP_ICON_SIZE, appIconChoices, chooseAppIcon } from "../../../state/settings/paneData";
 import { useResource } from "../../../state/settings/resources";
+import { useSidebarHighContrast } from "../../../state/sidebar/textLook";
+import { perLook } from "../../ui/tokens";
 
 const MODES: { value: Settings["appearance"]; title: string; description: string }[] = [
   { value: "auto", title: "Automatic", description: "Follow the system appearance setting" },
@@ -45,7 +47,12 @@ export function AppearancePane() {
           </Row>
         </Group>
       </Box>
+      <SidebarTextPicker />
       <InterfaceStylePicker />
+      <SectionHeader title="Minimalism" description={null} />
+      <Group>
+        <SettingToggle anchor="appearance.minimalismMode" />
+      </Group>
       <AddressBarPicker />
       <PageFramePicker />
       <BookmarksBarSection />
@@ -103,7 +110,7 @@ function StyleChoice({ value, title, selected, onPress }: { value: Settings["int
       <MiniWindow layout="none" look={{ window: look.backdrop, bar: look.tile, page: look.tile }}>
         <Box row gap="m" pad="xs" style={STYLE_TILES}>
           {[0, 1, 2].map((i) => (
-            <View key={i} style={[STYLE_TILE, glass ? null : { backgroundColor: look.tile, borderWidth: 1, borderColor: look.tileStroke }]}>
+            <View key={i} style={[STYLE_TILE(), glass ? null : { backgroundColor: look.tile, borderWidth: 1, borderColor: look.tileStroke }]}>
               {glass ? <GlassFill radius={radius.tile} state={i === 0 ? "active" : "rest"} /> : null}
             </View>
           ))}
@@ -114,7 +121,7 @@ function StyleChoice({ value, title, selected, onPress }: { value: Settings["int
 }
 
 const STYLE_TILES = { flex: 1 } as const;
-const STYLE_TILE = { flex: 1, alignSelf: "flex-start", height: 30, borderRadius: radius.tile } as const;
+const STYLE_TILE = perLook(() => ({ flex: 1, alignSelf: "flex-start", height: 30, borderRadius: radius.tile }) as const);
 
 function AddressBarPicker() {
   const addressBar = useSettings((s) => s.addressBar);
@@ -199,6 +206,30 @@ function PageFramePicker() {
             accessibilityLabel="Zero in full screen when tabs are hidden"
             onChange={(on) => updateSettings({ pageFrameZeroWhenTabsHidden: on })}
           />
+        </Row>
+      </Group>
+    </>
+  );
+}
+
+const SIDEBAR_TEXT_SIZES: { value: Settings["sidebarTextSize"]; title: string }[] = [
+  { value: "default", title: "Default" },
+  { value: "large", title: "Large" },
+  { value: "larger", title: "Larger" },
+];
+
+function SidebarTextPicker() {
+  const size = useSettings((s) => s.sidebarTextSize);
+  const highContrast = useSidebarHighContrast();
+  return (
+    <>
+      <SectionHeader title="Sidebar Text" />
+      <Group>
+        <Row anchor="appearance.sidebarTextSize">
+          <PopUp value={size} options={SIDEBAR_TEXT_SIZES} onChange={(v) => updateSettings({ sidebarTextSize: v })} minWidth={120} />
+        </Row>
+        <Row anchor="appearance.sidebarTextContrast">
+          <Toggle value={highContrast} accessibilityLabel="Higher contrast sidebar text" onChange={(on) => updateSettings({ sidebarTextContrast: on ? "high" : "standard" })} />
         </Row>
       </Group>
     </>

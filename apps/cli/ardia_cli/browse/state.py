@@ -1,4 +1,5 @@
 import asyncio
+import re
 import time
 from dataclasses import dataclass
 
@@ -9,14 +10,24 @@ from ardia_cli.browse.errors import BrowseError, ConnectionLost, StaleRef
 from ardia_cli.browse.page import Page
 from ardia_cli.browse.tabs import Registry
 
+NTH_SUFFIX = re.compile(r">>\s*nth=-?\d+\s*$")
+
 PAGE_SCHEMES = ("http:", "https:", "about:", "data:", "blob:", "file:")
 ACTIVE_TIMEOUT = 3.0
+APPEAR_POLL = 0.15
 PROBE_TIMEOUT = 3.0
 UNKNOWN = object()
 NO_PAGE = (
-    "The user isn't on a web page right now (New Tab or another Ardia view) and this session has no tab yet. "
-    "Open one with `ardia browse open <url>`, or pick one with `ardia browse tab list` and `ardia browse tab <id>`"
+    "The user isn't on a web page right now (New Tab or another Ardia view). "
+    "Open a tab of this session's own with `ardia browse open <url>`, or pick one with `ardia browse tab list` and `ardia browse tab <id>`"
 )
+NO_SESSION_TAB = (
+    "This session has no tab yet, and it never takes the user's tab on its own. `ardia browse open <url>` opens a "
+    "background tab of its own; to work in the tab the user is looking at, pick it first with `ardia browse tab active`"
+)
+
+
+NAVIGATED_REFS_KEPT = 4000
 
 
 @dataclass
@@ -47,6 +58,11 @@ class State:
         self.instance: str | None = None
         self.endpoint = None
         self.pages: dict[str, Page] = {}
+        self.pending_reaction: dict | None = None
+        self.consent_dismissed: str | None = None
+        self.click_note: str | None = None
+        self.load_note: str | None = None
+        self.script_state: str = "{}"
         self.sessions: dict[str, Page] = {}
         self.tab_ids: dict[str, str] = {}
         self.next_tab = 1
@@ -60,6 +76,7 @@ class State:
         self.refs: dict[str, Ref] = {}
         self.issued_refs = 0
         self.ref_keys: dict[tuple, str] = {}
+        self.navigated_refs: dict[str, Ref] = {}
         self.current_refs: list[str] = []
         self.generation = 0
         self.last_snapshot: str | None = None
@@ -244,10 +261,9 @@ class State:
                     data={"targetId": self.extras.get("pinned_target")},
                     code="tab_gone",
                 )
-            if self.extras.get("had_tab"):
-                target_id = await self.follow_lost_tab()
-            else:
-                target_id = await self.attach_active()
+            if not self.extras.get("had_tab"):
+                raise BrowseError(NO_SESSION_TAB, code="no_session_tab")
+            target_id = await self.follow_lost_tab()
         if target_id not in self.target_infos:
             await self.refresh_targets()
             if target_id not in self.target_infos:
@@ -298,7 +314,7 @@ class State:
         raise BrowseError(f"This session's tab{gone} is gone (closed, or Ardia replaced its page and didn't say which page took over). {fix}",
                           code="tab_gone")
 
-    async def attach_active(self) -> str:
+    async def take_active(self) -> str:
         target_id = await self.active_target()
         if target_id is UNKNOWN:
             target_id = await self.shown_target()
@@ -311,12 +327,6 @@ class State:
         self.extras["attached"] = target_id
         if self.pin_tab:
             self.extras["pinned_target"] = target_id
-        from ardia_cli.browse import tabs
-
-        await tabs.app_tab_map(self)
-        info = self.target_infos[target_id]
-        label = " - ".join(part for part in (info.get("title"), info.get("url")) if part)
-        self.extras["notice"] = f"→ This session had no tab, so it uses the active one: [{self.tab_id(target_id)}] {label}"
         return target_id
 
     async def active_target(self):
@@ -402,7 +412,11 @@ class State:
             instance, target, frame, loader, _ = key
             if instance != self.instance or (target == page.target_id and (frame, loader) not in live):
                 del self.ref_keys[key]
-                self.refs.pop(ref_id, None)
+                gone = self.refs.pop(ref_id, None)
+                if gone is not None and instance == self.instance:
+                    self.navigated_refs[ref_id] = gone
+        while len(self.navigated_refs) > NAVIGATED_REFS_KEPT:
+            self.navigated_refs.pop(next(iter(self.navigated_refs)))
 
     def next_ref(self) -> str:
         self.issued_refs += 1
@@ -430,6 +444,8 @@ class State:
     async def resolve_ref(self, ref_id: str, follow: bool = True):
         ref = self.refs.get(ref_id)
         if ref is None:
+            if ref_id in self.navigated_refs:
+                raise StaleRef(ref_id, await self.after_navigation(self.navigated_refs[ref_id]))
             if ref_id[1:].isdigit() and int(ref_id[1:]) <= self.issued_refs:
                 raise StaleRef(ref_id, "it came from an earlier snapshot, and refs are never reused")
             raise BrowseError(f"Unknown ref: {ref_id}", code="unknown_ref")
@@ -467,6 +483,21 @@ class State:
             return found_page, found
         raise StaleRef(ref_id, f'{gone}; the page redrew it, and the same {ref.role} "{ref.name}" is now @{successor.id}')
 
+    async def after_navigation(self, old: Ref) -> str:
+        why = "the page navigated since that snapshot (an earlier step loaded a new document)"
+        if old.target not in self.pages:
+            return why
+        command_metrics.flag("stale_ref_after_navigation", True)
+        try:
+            successor = await self.redrawn(self.pages[old.target], old)
+        except ConnectionLost:
+            raise
+        except BrowseError:
+            successor = None
+        if successor is None:
+            return why
+        return f'{why}; the new page has the same {old.role} "{old.name}" as @{successor.id}, if it is the one you meant'
+
     async def redrawn(self, page: Page, ref: Ref) -> Ref | None:
         from ardia_cli.browse import snapshot
 
@@ -482,23 +513,41 @@ class State:
         same = [node.ref for node in snapshot.walk(nodes) if node.ref and node.role == ref.role and node.name == ref.name]
         return self.refs.get(same[0]) if len(same) == 1 else None
 
-    async def locate(self, selector: str, page: Page | None = None):
+    async def locate(self, selector: str, page: Page | None = None, wait: float = 0.0):
         ref = parse_ref(selector)
         if ref:
             return await self.resolve_ref(ref)
         page = page or await self.page()
-        frame = self.frame_for(page) or page.main_frame
-        try:
-            remote = await page.call("(s) => ardiaBrowse.query(s)", selector, frame=frame, by_value=False, read=True)
-        except BrowseError as error:
-            raise BrowseError(f"Invalid selector {selector}: {error.message}") from None
-        element = await page.element_from(remote, frame, selector)
-        if element is None:
-            raise BrowseError(
-                f"Element not found: {selector}. Verify the selector, role, or name is correct and the element exists in the DOM.",
-                code="not_found",
-            )
-        return page, element
+        if NTH_SUFFIX.search(selector):
+            command_metrics.flag("selector_nth", True)
+        deadline = time.monotonic() + wait
+        polled = False
+        while True:
+            frame = self.frame_for(page) or page.main_frame
+            try:
+                remote = await page.call("(s) => ardiaBrowse.query(s)", selector, frame=frame, by_value=False, read=True)
+            except BrowseError as error:
+                if error.code in ("document_changed", "page_navigated", "frame_gone") and time.monotonic() + APPEAR_POLL < deadline:
+                    polled = True
+                    await asyncio.sleep(APPEAR_POLL)
+                    continue
+                if error.code != "page_script_error":
+                    raise
+                raise BrowseError(f"Invalid selector {selector}: {error.message}") from None
+            element = await page.element_from(remote, frame, selector)
+            if element is not None:
+                if polled:
+                    command_metrics.flag("waited_for_element", True)
+                return page, element
+            if time.monotonic() + APPEAR_POLL > deadline:
+                break
+            polled = True
+            await asyncio.sleep(APPEAR_POLL)
+        waited = f" (waited {wait:g} s for it to appear)" if wait else ""
+        raise BrowseError(
+            f"Element not found: {selector}{waited}. Verify the selector, role, or name is correct and the element exists in the DOM.",
+            code="not_found",
+        )
 
     def describe_tabs(self, app_tabs: dict[str, str] | None = None) -> list[dict]:
         opened_elsewhere, used_elsewhere = self.registry.others(self.instance)

@@ -4,12 +4,13 @@ import { switchOn } from "../../state/app/switches";
 import { ContextMenuArea, space, WindowDragRegion } from "../ui";
 import { layout } from "../ui/theme";
 import { TintInk } from "../ui/TintInk";
+import { SidebarTextScope } from "./SidebarTextScope";
 import { ThemeScope } from "../window/ThemeScope";
 import { PageProfileContext, useSettings, useWindowId } from "../../state/browser/hooks";
 import { newTab } from "../../state/tabs/actions";
 import { useSidebarCells } from "../../state/sidebar/hooks";
-import { useAddressBarInSidebar } from "../../state/windows/layout";
-import { SIDEBAR_PLAYER_HEIGHT, SidebarPlayer, useSidebarPlayerTab } from "../media/SidebarPlayer";
+import { useSidebarField, useSidebarPart } from "../../state/sidebar/chrome";
+import { SIDEBAR_PLAYER_HEIGHT, SidebarPlayer, usePlayerMotion, useSidebarPlayerTab } from "../media/SidebarPlayer";
 import { usePageStyle } from "../../state/windows/profilePager";
 import { useSharedTilesStyle } from "../../state/sidebar/sharedTiles";
 import { DragScope, useDragController, useDragging, usePinnedCount } from "./DragProvider";
@@ -45,7 +46,9 @@ type PageProps = {
 
 export const SidebarPage = memo(function SidebarPage({ profileId, slot, paging, width, current, resting, dockAbove, height, rows, geometry, onScrollView, onScrollY }: PageProps) {
   const windowId = useWindowId();
-  const topGap = listTopGap(useAddressBarInSidebar());
+  const topGap = listTopGap(useSidebarField() === "top");
+  const pinnedShown = useSidebarPart("pinned");
+  const newTabShown = useSidebarPart("newTab");
   const pageStyle = usePageStyle(windowId, slot, width);
   const sharedTiles = useSharedTilesStyle(windowId, slot, width, paging);
   const [lazy] = useState(() => switchOn("lazySidebarRows"));
@@ -58,7 +61,9 @@ export const SidebarPage = memo(function SidebarPage({ profileId, slot, paging, 
   const offScreen = beside && !current;
   const playerTab = useSidebarPlayerTab(windowId, profileId);
   const playerHeight = playerTab ? SIDEBAR_PLAYER_HEIGHT : 0;
-  const tiles = useSidebarCells(windowId, profileId, offScreen);
+  const playerMotion = usePlayerMotion();
+  const cells = useSidebarCells(windowId, profileId, offScreen);
+  const tiles = pinnedShown ? cells : NONE;
   const innerWidth = width - layout.sidebarInset * 2;
   const dragging = useDragging() && current;
   const previewed = usePinnedCount(tiles);
@@ -126,7 +131,7 @@ export const SidebarPage = memo(function SidebarPage({ profileId, slot, paging, 
     report();
   };
   useEffect(report, [playerHeight, resting]);
-  const inlineNewTab = !docked;
+  const inlineNewTab = !docked && newTabShown;
 
   return (
     <Animated.View
@@ -136,6 +141,7 @@ export const SidebarPage = memo(function SidebarPage({ profileId, slot, paging, 
       <PageProfileContext.Provider value={profileId}>
         <ThemeScope>
           <TintInk>
+            <SidebarTextScope>
             <DragScope enabled={current}>
               <PageContent tilesFixed={dockFixed} tilesRoom={dockRoom}>
                 {(controller) => (
@@ -149,48 +155,52 @@ export const SidebarPage = memo(function SidebarPage({ profileId, slot, paging, 
                     </View>
                     <Animated.View style={{ flex: 1, marginTop: -GLOW_ROOM, overflow: "hidden", transform: [{ translateY: edge }] }}>
                       <Animated.View style={{ flex: 1, transform: [{ translateY: unedge }] }}>
-                        <Animated.ScrollView
-                          ref={current ? onScrollView : undefined}
-                          onLayout={(e) => {
-                            page.viewport = e.nativeEvent.layout.height;
-                            if (!geometry) return;
-                            geometry.current.viewport = page.viewport;
-                            geometry.current.laidOut?.();
-                          }}
-                          style={{ flex: 1 }}
-                          showsVerticalScrollIndicator={false}
-                          scrollEventThrottle={16}
-                          onScroll={onScroll}
-                          contentContainerStyle={{ flexGrow: 1, width, paddingHorizontal: layout.sidebarInset, paddingTop: LIST_PAD, paddingBottom: docked ? GLOW_ROOM : 0 }}
-                        >
-                          <PageRows
-                            windowId={windowId}
-                            profileId={profileId}
-                            current={current}
-                            rows={rows}
-                            lazy={lazy}
-                            offScreen={offScreen}
-                            tiles={scrolledTiles}
-                            underDockedTiles={fixedTiles.length > 0}
-                            innerWidth={innerWidth}
-                            inlineNewTab={inlineNewTab}
-                            controller={controller}
-                            geometry={geometry}
-                            regions={page.regions}
-                            onListHeight={reportList}
-                          />
-                          <ContextMenuArea style={{ flexGrow: 1, minHeight: inlineNewTab ? 24 : 0 }} onContextMenu={() => void openSidebarMenu(windowId)}>
-                            <WindowDragRegion style={{ flex: 1 }} titleBarDoubleClick={false} onRegionDoubleClick={() => toggleNewTabBar(windowId) || newTab(windowId, { newTabCommand: true })} />
-                          </ContextMenuArea>
-                        </Animated.ScrollView>
+                        <Animated.View style={{ flex: 1, overflow: "hidden", transform: [{ translateY: playerMotion.listClip }] }}>
+                          <Animated.View style={{ flex: 1, transform: [{ translateY: playerMotion.listUnclip }] }}>
+                            <Animated.ScrollView
+                              ref={current ? onScrollView : undefined}
+                              onLayout={(e) => {
+                                page.viewport = e.nativeEvent.layout.height;
+                                if (!geometry) return;
+                                geometry.current.viewport = page.viewport;
+                                geometry.current.laidOut?.();
+                              }}
+                              style={{ flex: 1 }}
+                              showsVerticalScrollIndicator={false}
+                              scrollEventThrottle={16}
+                              onScroll={onScroll}
+                              contentContainerStyle={{ flexGrow: 1, width, paddingHorizontal: layout.sidebarInset, paddingTop: LIST_PAD, paddingBottom: docked ? GLOW_ROOM : 0 }}
+                            >
+                              <PageRows
+                                windowId={windowId}
+                                profileId={profileId}
+                                current={current}
+                                rows={rows}
+                                lazy={lazy}
+                                offScreen={offScreen}
+                                tiles={scrolledTiles}
+                                underDockedTiles={fixedTiles.length > 0}
+                                innerWidth={innerWidth}
+                                inlineNewTab={inlineNewTab}
+                                controller={controller}
+                                geometry={geometry}
+                                regions={page.regions}
+                                onListHeight={reportList}
+                              />
+                              <ContextMenuArea style={{ flexGrow: 1, minHeight: inlineNewTab ? 24 : 0 }} onContextMenu={() => void openSidebarMenu(windowId)}>
+                                <WindowDragRegion style={{ flex: 1 }} titleBarDoubleClick={false} onRegionDoubleClick={() => toggleNewTabBar(windowId) || newTab(windowId, { newTabCommand: true })} />
+                              </ContextMenuArea>
+                            </Animated.ScrollView>
+                          </Animated.View>
+                        </Animated.View>
                       </Animated.View>
                     </Animated.View>
                     {playerTab ? (
                       <View style={{ paddingHorizontal: layout.sidebarInset, paddingTop: docked ? space.m : 0, paddingBottom: docked ? 0 : space.m }}>
-                        <SidebarPlayer tabId={playerTab} />
+                        <SidebarPlayer tabId={playerTab} motion={playerMotion} docked={docked} />
                       </View>
                     ) : null}
-                    {docked ? (
+                    {docked && newTabShown ? (
                       <View style={{ paddingHorizontal: layout.sidebarInset, paddingTop: layout.rowGap, paddingBottom: DOCKED_BOTTOM }}>
                         <NewTabRow windowId={windowId} />
                       </View>
@@ -199,6 +209,7 @@ export const SidebarPage = memo(function SidebarPage({ profileId, slot, paging, 
                 )}
               </PageContent>
             </DragScope>
+            </SidebarTextScope>
           </TintInk>
         </ThemeScope>
       </PageProfileContext.Provider>
