@@ -4,6 +4,7 @@ import { afterFirstWindow } from "../../lib/afterFirstWindow";
 import { mergedPalettes, parseThemeFile, type RolePalettes, type ThemeRoles } from "../../lib/themeFile";
 import { DEFAULT_LOOK, resolveLook, withSidebarText, type LookBlocks, type SidebarTextSize } from "../../lib/themeLook";
 import { setActiveLook } from "../../lib/activeLook";
+import { withoutOutlines } from "./elementOutlines";
 import { minimalismLookOf } from "../../lib/minimalismLook";
 import { useBrowser } from "../browser/store";
 import { hideKeyedToast, showToast, useToasts } from "../app/toasts";
@@ -35,6 +36,7 @@ let theme: Theme = { name: null, ...NO_THEME };
 let appliedSidebarText: SidebarTextSize = "default";
 let stopWatchingSidebarText: (() => void) | null = null;
 let revision = 0;
+let outlines = true;
 let minimalism = false;
 let stopWatchingMinimalism: (() => void) | undefined;
 let windowsUp = false;
@@ -80,17 +82,20 @@ function applyTheme(next: Theme) {
   if (!defaults) return;
   const size = sidebarTextSize();
   const minimal = useBrowser.getState().settings.minimalismMode;
-  if (next.name === theme.name && size === appliedSidebarText && minimal === minimalism && JSON.stringify([next.roles, next.look]) === JSON.stringify([theme.roles, theme.look])) return;
+  const outlined = useBrowser.getState().settings.elementOutlines;
+  if (next.name === theme.name && size === appliedSidebarText && minimal === minimalism && outlined === outlines && JSON.stringify([next.roles, next.look]) === JSON.stringify([theme.roles, theme.look])) return;
   const before = useBasePalette.getState().look;
   const resolved = resolveLook(next.look);
   const look = withSidebarText(minimal ? minimalismLookOf(resolved) : resolved, size);
   theme = next;
   appliedSidebarText = size;
   minimalism = minimal;
+  outlines = outlined;
   revision += 1;
   setActiveLook(look);
-  const themed = next.roles || look !== DEFAULT_LOOK;
-  useBasePalette.setState({ palette: themed ? mergedPalettes(defaults, next.roles, revision) : null, theme: next.name, look, blocks: next.look });
+  const roles = outlined ? next.roles : withoutOutlines(next.roles);
+  const themed = roles || look !== DEFAULT_LOOK;
+  useBasePalette.setState({ palette: themed ? mergedPalettes(defaults, roles, revision) : null, theme: next.name, look, blocks: next.look });
   applySidebarWidth(before.sidebarWidth, look.sidebarWidth);
 }
 
@@ -228,6 +233,7 @@ export function startConfigFiles(roles: RolePalettes) {
   stopWatchingSidebarText = useBrowser.subscribe((s, prev) => {
     if (s.settings.sidebarTextSize !== prev.settings.sidebarTextSize) applyTheme(theme);
   });
+  unsubscribers.push(useBrowser.subscribe((s, prev) => s.settings.elementOutlines !== prev.settings.elementOutlines && applyTheme(theme)));
   stopWatchingMinimalism = useBrowser.subscribe((s, prev) => {
     if (s.settings.minimalismMode !== prev.settings.minimalismMode) applyTheme(theme);
   });
@@ -246,6 +252,7 @@ export function resetConfigFilesForTests() {
   stopWatchingMinimalism?.();
   stopWatchingMinimalism = undefined;
   minimalism = false;
+  outlines = true;
   timer = undefined;
   defaults = null;
   theme = { name: null, ...NO_THEME };

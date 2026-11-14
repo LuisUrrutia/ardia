@@ -2065,5 +2065,5 @@ SKIPPED = {
     "swipe": "iOS isn't supported",
     "tap": "iOS isn't supported",
     "device": "iOS isn't supported",
-    "skills": "use `ardia skills install`",
+    "skills": "use `ardia --skill` (or `ardia skills get --full`) to print the skill, `ardia skills install` to copy it",
 }

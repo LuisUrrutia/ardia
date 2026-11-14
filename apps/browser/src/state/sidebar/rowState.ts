@@ -2,7 +2,7 @@ import { useBrowser, type BrowserState } from "../browser/store";
 import { useTab } from "../browser/hooks";
 import { useKeyed } from "../browser/keyedWatch";
 import { watchTabState } from "../tabs/tabStateWatch";
-import { activeTabId } from "../browser/model";
+import { activeTabId, pinSection } from "../browser/model";
 import type { Tab } from "../browser/types";
 import { engineMark, type PageEngine } from "../engines/engines";
 import { isPageUnloaded } from "../pins/pinShare";
@@ -18,8 +18,11 @@ const SITE_MUTED = 256;
 const ENGINE_MARKS: Record<PageEngine, number> = { chromium: 32, webkit: 64 };
 export const ICON_MARKS = FADED | ENGINE_MARKS.chromium | ENGINE_MARKS.webkit;
 
+export const isClosedTopApp = (s: BrowserState, tabId: string): boolean =>
+  !s.settings.closedTopAppTiles && pinSection(s.tabs[tabId]) === "tile" && isPageUnloaded(s, tabId);
+
 export function iconMarks(s: BrowserState, tabId: string): number {
-  const faded = s.settings.fadeUnloadedTabs && isPageUnloaded(s, tabId) ? FADED : 0;
+  const faded = (s.settings.fadeUnloadedTabs && isPageUnloaded(s, tabId)) || isClosedTopApp(s, tabId) ? FADED : 0;
   const mark = engineMark(s, tabId);
   return mark ? faded | ENGINE_MARKS[mark] : faded;
 }

@@ -76,6 +76,12 @@ the pins into `pyproject.toml`).
   `skipped <folder>` for the rest, refuses a linked subfolder, and keeps only our folders in the list. `install.sh` runs it after
   each upgrade, so installed copies follow the CLI. Both also install cua-driver's skill next to ours (see Computer
   use); `--no-cua` skips it.
+- `ardia skills get [--full]` (and `ardia --skill [--full]`, the same command) prints the skill that ships inside
+  this CLI to stdout, byte for byte, so an agent reads the version that matches the command it is about to run:
+  `SKILL.md` alone, or with `--full` followed by every file under `references/`, each after a `--- references/<name> ---`
+  line. `ardia skills list` prints each shipped skill's name and description (the front matter), tab-separated.
+  Neither needs Ardia, writes a file or prints to stderr, and both exit 0 (141, quietly, when the reader closes the
+  pipe). `ardia --help` tells an agent to run `ardia --skill` unless an ardia skill is already in its context.
 - `ardia computer <cua-driver command> [args]`, `ardia computer setup [--no-grant]` and
   `ardia computer mcp-config [--target …]` operate native Mac apps through the pinned cua-driver (see Computer use).
 - `ardia scripts new|test|install|uninstall|list` writes, tests and installs userscripts (see Userscripts).

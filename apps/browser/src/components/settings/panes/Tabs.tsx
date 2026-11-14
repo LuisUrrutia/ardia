@@ -120,6 +120,7 @@ export function TabsPane() {
         <SettingToggle anchor="tabs.showUnreadCounts" />
         <SettingToggle anchor="tabs.showTopAppBadges" />
         <SettingToggle anchor="tabs.showTabHoverMenu" />
+        <SettingToggle anchor="tabs.closedTopAppTiles" />
         <SettingToggle anchor="tabs.fadeUnloadedTabs" />
         </Group>
       </Box>
