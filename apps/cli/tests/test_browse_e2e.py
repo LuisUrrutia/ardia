@@ -998,6 +998,9 @@ class BrowseTokenPath(unittest.TestCase):
         self.assertEqual(self.browse("wait", "--text", "submitted:token@example.com").returncode, 0)
         shot = SCRATCH / "token.png"
         self.browse("screenshot", str(shot))
+        named = SCRATCH / "out-flag.png"
+        self.assertEqual(self.browse("screenshot", "--out", str(named)).stdout, f"✓ Screenshot saved to {named}\n")
+        self.assertEqual(named.read_bytes()[:8], b"\x89PNG\r\n\x1a\n")
         self.assertEqual(shot.read_bytes()[:4], b"\x89PNG")
         self.assertNotIn("about:blank", self.browse("tab").stdout)
         self.assertIn("never prints it", self.browse("get", "cdp-url", check=False).stderr)
