@@ -88,6 +88,36 @@ try {
     await run(`st().updateSettings({ sidebarWidth: 160 }); return away();`);
   });
 
+  await rep.check("a drag that starts on a tab row keeps the peek out while the button is down, the pointer 160 pt past its edge (#1679)", async () => {
+    assert.equal(await run(`return peek();`), true);
+    const out = await run(`let win;
+      return ac.engine.call("windows.list", {}).then((l) => { win = l.find((w) => w.hasRoot).window; })
+        .then(() => at(60, 66)).then(() => settle(200))
+        .then(() => ac.engine.call("windows.dev", { window: win, action: "mouse:down:60,66" })).then(() => settle(80))
+        .then(() => ac.engine.call("windows.dev", { window: win, action: "mouse:dragged:100,66" })).then(() => at(9 + 160 + 160, 66))
+        .then(() => ac.engine.call("windows.dev", { window: win, action: "mouse:dragged:" + (9 + 160 + 160) + ",66" }))
+        .then(() => settle(700)).then(() => { const held = live(); return ac.engine.call("windows.dev", { window: win, action: "mouse:up:" + (9 + 160 + 160) + ",66" }).then(() => settle(600)).then(() => ({ held, after: live() })); });`);
+    assert.equal(out.held, true, "out while the button is down");
+    assert.equal(out.after, false, "closes once the button comes up away from it");
+    await run(`return away();`);
+  });
+
+  for (const [where, x, y] of [["the empty list", 80, 420], ["the header", 120, 20]]) {
+    await rep.check(`a press on ${where} is a window drag: the peek stays out while the button is down (#1679)`, async () => {
+      assert.equal(await run(`return peek();`), true);
+      const out = await run(`let win;
+        return ac.engine.call("windows.list", {}).then((l) => { win = l.find((w) => w.hasRoot).window; })
+          .then(() => at(${x}, ${y})).then(() => settle(200))
+          .then(() => ac.engine.call("windows.dev", { window: win, action: "mouse:down:${x},${y}" }))
+          .then((hit) => settle(700).then(() => ({ hit, held: live() })))
+          .then((r) => ac.engine.call("windows.dev", { window: win, action: "mouse:up:${x},${y}" }).then(() => settle(300)).then(() => ({ ...r, after: live() })));`);
+      assert.match(out.hit, /WindowDragRegion/, "the press lands on a window drag region");
+      assert.equal(out.held, true, "out while the button is down");
+      assert.equal(out.after, true, "still out with the pointer over it after the button comes up");
+      await run(`return away();`);
+    });
+  }
+
   await rep.check("with Reveal hidden tabs on hover off, the edge doesn't open it (#1393)", async () => {
     await run(`st().updateSettings({ revealTabsOnHover: false }); return settle(300);`);
     assert.equal(await run(`return peek();`), false);

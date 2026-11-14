@@ -1,10 +1,12 @@
 import AppKit
+import ArdiaCore
 
 final class SidebarEdgeWatcher {
   static let shared = SidebarEdgeWatcher()
   static let reach: CGFloat = 24
 
   var pointerOverride: NSPoint?
+  private var backgroundPoint: NSPoint?
   private struct Watch {
     let hold: CGFloat
     let right: Bool
@@ -16,6 +18,7 @@ final class SidebarEdgeWatcher {
   private var pressedInside: Set<String> = []
   private var unreported: Set<String> = []
   private var buttonHeld = false
+  private var wasPressed = false
   private var localMonitor: Any?
   private var globalMonitor: Any?
   private var observers: [NSObjectProtocol] = []
@@ -43,7 +46,15 @@ final class SidebarEdgeWatcher {
 
   func checkPointer() {
     if let pointerOverride { return check(pointerOverride, live: false) }
+    if let backgroundPoint { return check(backgroundPoint, live: false) }
     check(NSEvent.mouseLocation, live: true)
+  }
+
+  private func checkPointer(after event: NSEvent) {
+    if LaunchConfig.shared.background, let window = event.window {
+      backgroundPoint = window.convertPoint(toScreen: event.locationInWindow)
+    }
+    checkPointer()
   }
 
   private func noteButtons(_ event: NSEvent) {
@@ -62,6 +73,8 @@ final class SidebarEdgeWatcher {
   private func check(_ point: NSPoint, live: Bool) {
     lazy var onDock = live && NSApp.isActive && isOnDock(point)
     let pressed = buttonHeld || (live && NSEvent.pressedMouseButtons != 0)
+    if pressed && !wasPressed { pressedInside.formUnion(over.filter { watched[$0]?.whilePressed == true }) }
+    wasPressed = pressed
     for (id, watch) in watched {
       guard let window = WindowManager.shared.window(id) else {
         watched[id] = nil
@@ -218,7 +231,7 @@ final class SidebarEdgeWatcher {
         self?.wakes["local", default: 0] += 1
         #endif
         self?.noteButtons(event)
-        self?.checkPointer()
+        self?.checkPointer(after: event)
         return event
       })
     }
@@ -248,6 +261,7 @@ final class SidebarEdgeWatcher {
     pressedInside = []
     unreported = []
     pointerOverride = nil
+    backgroundPoint = nil
     stop()
   }
 
