@@ -1,5 +1,6 @@
 #import "ArdiaPictureInPictureInternal.h"
 #import "ArdiaChromeWindowHost.h"
+#import "ArdiaPiPSeekMath.h"
 
 #import <objc/runtime.h>
 #import <QuartzCore/QuartzCore.h>
@@ -71,6 +72,8 @@ static __weak NSWindow *gSwipeMomentum;
   const NSPoint pointer = PointerOf(event);
   const NSRect frame = _window.frame;
   _dragging = YES;
+  _dragMoving = NO;
+  _dragFrom = pointer;
   _dragGrab = NSMakePoint(pointer.x - NSMinX(frame), pointer.y - NSMinY(frame));
   _dragHome = [self gestureHome];
   _dragBeganAt = event.timestamp;
@@ -84,6 +87,8 @@ static __weak NSWindow *gSwipeMomentum;
 
 - (void)followPointer:(NSEvent *)event {
   const NSPoint pointer = PointerOf(event);
+  _dragMoving = _dragMoving || !ardia_pip_seek::IsClick(ardia_pip_seek::Travel(pointer.x - _dragFrom.x, pointer.y - _dragFrom.y));
+  if (!_dragMoving) return;
   if (_dragSamples.size() >= 64) _dragSamples.erase(_dragSamples.begin(), _dragSamples.begin() + 32);
   _dragSamples.push_back({event.timestamp, pointer.x, pointer.y});
   const NSRect frame = _window.frame;
@@ -115,6 +120,11 @@ static __weak NSWindow *gSwipeMomentum;
   if (!_dragging) return;
   [self followPointer:event];
   _dragging = NO;
+  if (!_dragMoving) {
+    _dragSamples.clear();
+    _dragTrace = nil;
+    return;
+  }
   const NSRect frame = _window.frame;
   const NSPoint grabbed = NSMakePoint(NSMinX(frame) + _dragGrab.x, NSMinY(frame) + _dragGrab.y);
   const auto velocity = ardia_pip_throw::ReleaseVelocity(_dragSamples.data(), (int)_dragSamples.size(), event.timestamp);
