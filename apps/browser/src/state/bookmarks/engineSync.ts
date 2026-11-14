@@ -9,6 +9,7 @@ import type { BookmarkFolder, BookmarkNode, Bookmarks } from "../browser/types";
 import { engineProfiles } from "../profiles/engineProfiles";
 import { onProfilesOpened, openedEngineProfiles, openProfile, profileOpened } from "../profiles/profileLoading";
 import { migrateLegacyFile } from "../app/legacyFiles";
+import { noteBookmarkSyncDiff } from "../telemetry/bookmarkMoves";
 
 const LEGACY_FILE = "bookmarks.json";
 type LegacyFile = { bookmarks?: { nodes: Bookmarks["nodes"]; roots: Record<string, { bar: string; other: string }> } };
@@ -95,7 +96,9 @@ async function pushTree(engine: string, state: EngineState) {
   if (!state.shadow) return;
   const desired = flatFromStore(store().bookmarks, engine);
   if (!desired.nodes.size) return;
+  const started = Date.now();
   const ops = bookmarkOps(state.shadow, desired, engine);
+  noteBookmarkSyncDiff(Date.now() - started);
   if (!ops.length) return;
   if (await sendOps(engine, ops)) state.shadow = desired;
   else state.needRead = true;
