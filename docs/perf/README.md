@@ -427,6 +427,38 @@ paint comes 2.1 to 2.2 s after the switch (0.1 to 0.3 s preloaded), nearly all o
 profile's uBlock Origin rulesets are ready (`held 1 navigations … the first 2060 ms` in the app log), the same on a data
 folder where every profile had run before. Later switches cost what they did before.
 
+## Profiles no window shows (#1367, #1371)
+
+`native-bench.mjs --only profiles` measures what the profiles a window isn't showing cost, and what going back to one
+costs. It seeds one window with `--profile-count` profiles of one local tab each (`profile-seed.mjs`), opens each
+profile once, shows Personal again, and reads the loaded profiles (`profiles.loaded`) and the process tree's physical
+footprint 60 s later and again after `--idle` seconds. Then it switches to the first other profile and times its page:
+shown again when it was kept, first contentful paint when it had to load. `--setting K=V` and `--control-setting K=V`
+put a setting in each side's seeded session, so one app is measured against itself (they also work with `--seed big`,
+for a launch with a setting changed). The bench closes its DevTools sessions before idling: a page being debugged keeps
+its profile loaded. `--profile-visits 0` opens no other profile, which measures what a launch loads.
+
+```sh
+node apps/browser/scripts/perf/native-bench.mjs --app $APP --control $APP \
+  --label unload-5m --control-label unload-never --only profiles --profile-count 4 --runs 2 --idle 450 \
+  --setting unloadProfilesAfter=5m --control-setting unloadProfilesAfter=never --out $OUT/profiles
+```
+
+Unload inactive profiles (Settings › Advanced › Performance, off by default; `state/profiles/profileUnloading.ts`),
+measured 2026-11-14 on a Release build, 4 profiles, 450 s on Personal, two runs a side, load average 45 to 60:
+
+| | Never | After 5 minutes |
+|---|---:|---:|
+| Profiles loaded after the idle | 4 | 1 |
+| Processes | 13 | 6 |
+| Memory, process tree | 653 MB (644 to 662) | 311 MB (308 to 314) |
+| Back to a profile → its page shown | 76 ms (one run; the page was kept) | 634 ms (455 and 813; the profile, its uBlock Origin and the page load again) |
+
+Going back to an unloaded profile is a load, not a switch, which is why the setting is off unless chosen. In a Debug
+build the same return took 0.93 to 1.14 s in three rounds, 0.8 to 1.0 s of it the navigation hold until that profile's
+uBlock Origin rulesets are ready; the page came back at its URL, scroll position and back/forward list, with its
+cookies (session cookies too) and local storage.
+
 ## Rows that don't compare with CEF-era numbers (0.2.21 and older)
 
 | Row | Why | Compare instead |
