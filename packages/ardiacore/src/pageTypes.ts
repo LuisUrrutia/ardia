@@ -267,8 +267,10 @@ export type WebViewHandle = {
 
   resolveUnresponsive(terminate: boolean): Promise<void>;
   discard(options?: { unload?: boolean }): Promise<DiscardOutcome>;
+  sleepIfHidden(seconds: number): Promise<DiscardRefusal[]>;
   setFrozen(frozen: boolean): Promise<void>;
 };
 
 export type DiscardOutcome = "discarded" | "already" | "refused" | "unsupported";
+export type DiscardRefusal = number;
 export type DiscardReason = "external" | "urgent" | "proactive" | "suggested" | "frozen";

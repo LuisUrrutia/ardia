@@ -372,6 +372,11 @@ const CFTimeInterval kHiddenNewTabLinkSeconds = 1;
   return [_tab discard] && _tab.discarded ? @"discarded" : @"refused";
 }
 
+- (NSArray<NSNumber *> *)sleepIfHiddenFor:(NSTimeInterval)seconds {
+  if (!_tab || _tab.closed || _tab.discarded) return @[ @-1 ];
+  return [_tab sleepIfHiddenFor:seconds];
+}
+
 - (void)tabDidChangeDiscarded:(ArdiaCoreTab *)tab {
   if (tab.discarded) [self emit:@"discarded" payload:@{@"url" : tab.url ?: @"", @"reason" : tab.discardReason ?: @""}];
   else [self emit:@"ready" payload:@{}];

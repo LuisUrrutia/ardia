@@ -305,6 +305,7 @@ ARDIACORE_EXPORT
 - (void)deliverHeldPageMessages;
 @property(readonly) NSDictionary<NSString*, id>* securityInfo;
 - (BOOL)discard;
+- (NSArray<NSNumber*>*)sleepIfHiddenFor:(NSTimeInterval)seconds;
 @property(readonly) BOOL discarded;
 @property(readonly, nullable) NSString* discardReason;
 @property(nonatomic) BOOL frozen;
