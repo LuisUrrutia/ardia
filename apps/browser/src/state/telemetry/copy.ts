@@ -67,6 +67,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "How many screen shares picked a tab, a window or a whole screen, how many times the share picker opened without Screen Recording permission, and how many times its Open System Settings button was pressed, summed up once an hour. Never which tab, window or screen",
       "How many automation rules waiting for approval had their notice held until the first window opened, summed up once an hour",
       "How many times you used Tidy Tabs, how many tabs it moved and how many times you undid it, summed up once an hour. Never which tabs or groups",
+      "How many times a tab's hover card opened, how many times you pressed one of its buttons and how many of those were Reset, and how many times you chose Reset Pinned Tab from a tab's right-click menu, summed up once an hour. Never which tabs or addresses",
       "How many times you copied a tab's address, and how many of those were taken while its first page was still loading, summed up once an hour. Never the address",
       "How many closed tabs and windows you reopened came back with their Back history, and how many Dock icon clicks brought a browser window forward, including those made while a floating video was in front, summed up once an hour",
       "How many times the \"New tab opened\" pill appeared after a link opened in the background, and how many times it was clicked, and how many link addresses showed at the top of the page because the pointer was near its bottom edge, summed up once an hour. Never which link or tab",
