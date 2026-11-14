@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { docs, removedStagings, stagingRemovals } from "../../test-native/index.ts";
-import { flushPersistence, loadSession, startPersistence } from "./persist.ts";
+import { flushPersistence, loadSession, resumePersistence, startPersistence } from "./persist.ts";
 import { useBrowser } from "../browser/store.ts";
 import { useDownloadProgress, withLiveProgress } from "../downloads/progress.ts";
 import { takeDownloadWork } from "../telemetry/downloadWork.ts";
@@ -84,6 +84,7 @@ function persisting(run) {
   } finally {
     unsubscribe();
     stop();
+    resumePersistence();
   }
 }
 
@@ -141,5 +142,41 @@ test("a download that is removed, cancelled before it has a path or forgotten wi
     report({ received: 40, profile: "work" });
     useBrowser.getState().forgetDownloads("work");
     assert.deepEqual(useDownloadProgress.getState(), {});
+  });
+});
+
+test("quitting saves the bytes a running download has by then, not the ones at its last save", () => {
+  persisting((report) => {
+    const started = report({ received: 10 });
+    assert.equal(report({ received: 150, total: 300, speed: 40 }), started);
+    flushPersistence({ final: true });
+    const saved = JSON.parse(docs.get("downloads.json")).downloads[0];
+    assert.deepEqual([saved.state, saved.received, saved.total], ["failed", 150, 300]);
+    assert.deepEqual([loadSession().downloads[0].received, loadSession().downloads[0].total], [150, 300]);
+  });
+});
+
+test("quitting with no download running, or with nothing new, writes nothing", () => {
+  persisting((report) => {
+    report({ received: 10 });
+    flushPersistence({ final: true });
+    resumePersistence();
+    takeDownloadWork();
+    flushPersistence({ final: true });
+    resumePersistence();
+    report({ state: "finished", path: "/d/done", received: 20, total: 20 });
+    takeDownloadWork();
+    flushPersistence({ final: true });
+    assert.equal(takeDownloadWork().download_history_writes, 0);
+  });
+});
+
+test("a download pushed off the end of the list takes its progress with it", () => {
+  persisting((report) => {
+    for (let i = 0; i <= 100; i++) report({ id: `running-${i}`, received: i + 1 });
+    const listed = useBrowser.getState().downloads.map((d) => d.id);
+    assert.equal(listed.length, 100);
+    assert.equal(listed.includes("running-0"), false);
+    assert.deepEqual(Object.keys(useDownloadProgress.getState()).sort(), [...listed].sort());
   });
 });

@@ -18,6 +18,8 @@ export const withLiveProgress = (downloads: Download[]): Download[] => {
   return downloads.map((d) => withProgress(d, live[d.id]));
 };
 
+export const anyDownloadProgress = () => Object.keys(useDownloadProgress.getState()).length > 0;
+
 export function showDownloadProgress(d: Download) {
   const shown = useDownloadProgress.getState()[d.id];
   if (shown && shown.received === d.received && shown.total === d.total && shown.speed === d.speed) return;

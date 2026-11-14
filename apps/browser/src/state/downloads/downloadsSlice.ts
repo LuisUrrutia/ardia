@@ -43,6 +43,7 @@ export const createDownloadsSlice: StateCreator<BrowserState, [], [], DownloadsS
   downloads: [],
 
   upsertDownload(d) {
+    const before = get().downloads;
     set((s) => {
       const listed = s.downloads.find((x) => x.id === d.id);
       if (!d.path && (d.state === "downloading" || d.state === "cancelled")) {
@@ -64,6 +65,8 @@ export const createDownloadsSlice: StateCreator<BrowserState, [], [], DownloadsS
     });
     if (d.state === "downloading" && get().downloads.some((x) => x.id === d.id && x.state === "downloading")) showDownloadProgress(d);
     else forgetDownloadProgress([d.id]);
+    const added = get().downloads !== before && !before.some((x) => x.id === d.id);
+    if (added) forgetDownloadProgress(before.slice(MAX_DOWNLOADS - 1).map((x) => x.id));
   },
 
   removeDownload(id) {

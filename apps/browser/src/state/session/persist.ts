@@ -11,7 +11,7 @@ import { closedWindowEntry, MAX_CLOSED_WINDOWS } from "../pins/closedTabs";
 import { isPeekTab } from "../peek/peek";
 import type { BrowserWindow, ClosedWindow, ParkedPins, SplitView, Tab } from "../browser/types";
 import { downloadSession } from "../downloads/downloadsSlice";
-import { withLiveProgress } from "../downloads/progress";
+import { anyDownloadProgress, withLiveProgress } from "../downloads/progress";
 import { noteDownloadHistoryWrite } from "../telemetry/downloadWork";
 import { parseSaved, versionedJson, unchanged, type Migrations, type SavedObject } from "../../lib/savedDocument";
 import { sessionWithCleanUpMinutes } from "../settings/cleanUpAfter";
@@ -270,10 +270,12 @@ export function loadSession({ restoreSession }: LaunchOverrides = {}): (HydrateD
 let flush: () => void = () => {};
 let unstaged: () => boolean = () => false;
 let resume: () => void = () => {};
+let stageDownloads: () => void = () => {};
 let frozen = false;
 
 export function flushPersistence({ final = false } = {}): boolean {
   const saving = !frozen;
+  if (final && anyDownloadProgress()) stageDownloads();
   flush();
   if (final && !frozen) saveLaunchLook(useBrowser.getState());
   if (final) frozen = true;
@@ -330,6 +332,7 @@ export function startPersistence(overrides: LaunchOverrides = {}) {
     if (dirty.size) timer = setTimeout(save, SAVE_DELAY_MS);
   };
   flush = save;
+  stageDownloads = () => dirty.add(DOCS.find((d) => d.name === DOWNLOADS_DOCUMENT)!);
   unstaged = () => [...dirty].some((d) => d.name === SESSION_DOCUMENT);
 
   const check = (s: BrowserState, initial = false) => {
