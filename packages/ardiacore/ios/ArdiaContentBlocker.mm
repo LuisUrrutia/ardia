@@ -104,14 +104,21 @@ bool gLaunching = true;
 constexpr double kSettleAfterLaunchSeconds = 1.5;
 
 NSString *const kRead =
-    @"Promise.all([lists(), trusted()]).then(([l, t]) => ({lists: selected(l).sort(), whitelist: [...t.whitelist].sort(), autoUpdate: l.autoUpdate !== false}))";
+    @"Promise.all([lists(), trusted()]).then(([l, t]) => ({lists: selected(l).sort(), imported: imported(l), whitelist: [...t.whitelist].sort(), autoUpdate: l.autoUpdate !== false}))";
 
 NSString *const kFollow =
     @"Promise.all([lists(), trusted()]).then(([l, t]) => {"
      "  const want = %@;"
      "  if (!Array.isArray(want.lists) || !Array.isArray(want.whitelist)) throw new Error('no settings to copy');"
+     "  const mine = imported(l);"
+     "  const wanted = Array.isArray(want.imported) ? want.imported : mine;"
+     "  const toImport = wanted.filter((u) => !mine.includes(u));"
+     "  const toRemove = mine.filter((u) => !wanted.includes(u));"
+     "  const importsDiffer = toImport.length > 0 || toRemove.length > 0;"
      "  let written = Promise.resolve(null);"
-     "  if (!sameSet(selected(l), want.lists))"
+     "  if (importsDiffer)"
+     "    written = written.then(() => send({what: 'applyFilterListSelection', toImport: toImport.join('\\n'), toRemove}));"
+     "  if (importsDiffer || !sameSet(selected(l), want.lists))"
      "    written = written.then(() => applyLists(want.lists));"
      "  if (!sameSet(t.whitelist, want.whitelist))"
      "    written = written.then(() => send({what: 'setWhitelist', whitelist: want.whitelist.join('\\n')}));"
@@ -240,6 +247,7 @@ void LoadHeld(NSString *profile) {
 }
 
 NSString *Category(NSString *listId, NSString *group) {
+  if ([group isEqual:@"custom"]) return @"custom";
   if ([group isEqual:@"regions"]) return @"regional";
   if ([listId containsString:@"cookie"]) return @"cookies";
   if ([group isEqual:@"privacy"] || [listId isEqual:@"ublock-privacy"]) return @"trackers";
@@ -267,9 +275,10 @@ NSString *const kState =
      "  const onByDefault = (id) => !!assets[id] && (assets[id].off !== true || forLanguages(assets[id].lang));"
      "  return {"
      "    lists: Object.entries(l.available)"
-     "      .filter(([id, list]) => list && list.content === 'filters' && list.group !== 'user' && list.group !== 'custom')"
+     "      .filter(([id, list]) => list && list.content === 'filters' && list.group !== 'user')"
      "      .map(([id, list]) => ({id, title: list.title || id, group: list.group || '', enabled: list.off !== true,"
-     "        defaultOn: onByDefault(id), filters: list.entryCount || 0})),"
+     "        defaultOn: list.group !== 'custom' && onByDefault(id), filters: list.entryCount || 0,"
+     "        failed: !!(l.cache && l.cache[id] && l.cache[id].error !== undefined)})),"
      "    networkFilters: l.netFilterCount || 0,"
      "    cosmeticFilters: l.cosmeticFilterCount || 0,"
      "    enabled: !t.whitelist.includes(offDirective),"
@@ -302,6 +311,7 @@ void State(void (^completion)(NSDictionary *state)) {
         @"enabled" : @([l[@"enabled"] boolValue]),
         @"defaultOn" : @([l[@"defaultOn"] boolValue]),
         @"filters" : @(Count(l[@"filters"])),
+        @"failed" : @([l[@"failed"] boolValue]),
       }];
     }
     NSMutableArray *allowed = [NSMutableArray array];
@@ -435,6 +445,42 @@ NSArray<NSString *> *Strings(id value) {
                       "})";
   Call(kProfile, ScriptWith(script, @[ listId, @(enabled) ]), ^(id, NSString *error) {
     if (!error) Publish(@{@"list" : listId, @"listEnabled" : @(enabled)});
+    ListsChanged(error, completion);
+  });
+}
+
++ (void)addList:(NSString *)url completion:(void (^)(NSDictionary<NSString *, id> *, NSString *))completion {
+  NSString *script = @"lists().then((before) => {"
+                      "  const url = %@;"
+                      "  if (!/^https?:\\/\\/[^\\s\\/]+\\S*$/i.test(url) || url.length > 2048) throw new Error('not a list address');"
+                      "  const needle = url.replace(/^https?:/i, '');"
+                      "  const findId = (l) => l.available[url] ? url : Object.keys(l.available).find((k) =>"
+                      "    [].concat(l.available[k] && l.available[k].contentURL || []).some((u) => typeof u === 'string' && u.endsWith(needle)));"
+                      "  const had = findId(before);"
+                      "  return applySelection({toImport: url}, Infinity).then(lists).then((l) => {"
+                      "    const id = findId(l);"
+                      "    if (!id) throw new Error('uBlock Origin turned the list down');"
+                      "    const entry = l.available[id];"
+                      "    const cache = l.cache && l.cache[id];"
+                      "    return {id, custom: entry.group === 'custom', existed: !!had && before.available[had].off !== true,"
+                      "      filters: entry.entryCount || 0, failed: !!(cache && cache.error !== undefined)};"
+                      "  });"
+                      "})";
+  Call(kProfile, ScriptWith(script, @[ url ]), ^(id added, NSString *error) {
+    if (!error && ![added isKindOfClass:NSDictionary.class]) error = @"no answer";
+    if (!error) Publish(@{@"list" : added[@"id"], @"listEnabled" : @YES});
+    ListsChanged(error, ^(NSString *changeError) { completion(changeError ? nil : added, changeError); });
+  });
+}
+
++ (void)removeList:(NSString *)listId completion:(void (^)(NSString *))completion {
+  NSString *script = @"lists().then((l) => {"
+                      "  const id = %@;"
+                      "  if (!l.available[id] || l.available[id].group !== 'custom') throw new Error(`no added list ${id}`);"
+                      "  return applySelection({toRemove: [id]});"
+                      "})";
+  Call(kProfile, ScriptWith(script, @[ listId ]), ^(id, NSString *error) {
+    if (!error) Publish(@{@"list" : listId, @"listEnabled" : @NO});
     ListsChanged(error, completion);
   });
 }

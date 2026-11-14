@@ -483,6 +483,8 @@ const fakeModules = {
   ArdiaContentBlocker: domain("contentBlocker", {
     setEnabled: () => null,
     setListEnabled: () => null,
+    addList: ({ url }) => ({ id: url, custom: true, existed: false, filters: 1, failed: false }),
+    removeList: () => null,
     isAllowed: () => false,
     setAllowed: () => null,
   }),

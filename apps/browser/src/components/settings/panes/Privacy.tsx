@@ -1,14 +1,12 @@
 import {
   clearSiteData,
   getSiteSettings,
-  onContentBlockerChange,
   removeExternalAppAllowance,
   resetSiteSettings,
   setContentBlockerAllowed,
   setSiteSetting,
   setZoom,
   type ClearSiteDataResult,
-  type FilterList,
   type FilterListCategory,
   type SiteSettings,
   type SiteSettingType,
@@ -19,68 +17,19 @@ import { useEffect, useState } from "react";
 import { Image, ScrollView, View } from "react-native";
 import { currentEngineProfile } from "../../../state/browser/current";
 import { useSettings } from "../../../state/browser/hooks";
-import { Button, Checkbox, DialogActions, DialogTitle, PopUp, Sheet, space, Text, Toggle } from "../../ui";
+import { Button, DialogActions, DialogTitle, PopUp, Sheet, space, Text, Toggle } from "../../ui";
 import { Favicon } from "../../favicon/Favicon";
 import { Group, ProfilePicker, Row, SectionHeader, useSettingsProfile } from "../Form";
-import { setting, type SettingId } from "../settingsIndex";
-import { appLinks, contentBlocker, siteOrigins, zoomLevels } from "../../../state/settings/paneData";
+import { appLinks, siteOrigins, zoomLevels } from "../../../state/settings/paneData";
 import { useResource } from "../../../state/settings/resources";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 import { replaceSettingsPlace } from "../../../state/settings/settingsWindows";
 import { updateSettings } from "../../../state/settings/actions";
-import { blockerAvailable, categoryOn, setBlockingCategory, setFilterList } from "../../../state/site/contentBlocking";
-import { noteContentBlockerUnavailable, noteContentBlockerWriteFailure } from "../../../state/telemetry/usage";
+import { categoryOn, setBlockingCategory } from "../../../state/site/contentBlocking";
 import { ShareDiagnosticsSection } from "./ShareDiagnostics";
+import { CATEGORIES, FilterListsSheet, useContentBlocker, writeBlocker } from "./FilterListsSheet";
 import { HiddenElementsSection } from "./HiddenElementsSection";
 import { UI_LOCALE } from "../../../lib/uiLocale";
-
-const CATEGORIES: { id: FilterListCategory; section: string; anchor?: SettingId }[] = [
-  { id: "ads", section: "Ad blockers", anchor: "privacy.blockAds" },
-  { id: "trackers", section: "Trackers", anchor: "privacy.blockTrackers" },
-  { id: "cookies", section: "Cookie banners", anchor: "privacy.blockCookieBanners" },
-  { id: "annoyances", section: "Annoyances" },
-  { id: "security", section: "Malware and scams" },
-  { id: "regional", section: "Regional blockers" },
-];
-
-const filtersText = (n: number) => `${n.toLocaleString(UI_LOCALE)} ${n === 1 ? "filter" : "filters"}`;
-
-const UNAVAILABLE_RETRY_MS = 3000;
-
-function useContentBlocker({ countOutages = false } = {}) {
-  const [state, reload] = useResource(contentBlocker);
-  const refresh = () => void reload();
-  useEffect(() => {
-    const sub = onContentBlockerChange(refresh);
-    return () => sub.remove();
-  }, []);
-  const unavailable = !!state && !blockerAvailable(state);
-  useEffect(() => {
-    if (!unavailable) return;
-    if (countOutages) noteContentBlockerUnavailable();
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let stopped = false;
-    const retry = () => {
-      timer = setTimeout(() => void reload().finally(() => !stopped && retry()), UNAVAILABLE_RETRY_MS);
-    };
-    retry();
-    return () => {
-      stopped = true;
-      clearTimeout(timer);
-    };
-  }, [unavailable]);
-  return [blockerAvailable(state ?? null) ? state! : null, refresh, unavailable] as const;
-}
-
-async function writeBlocker(write: () => Promise<unknown>, refresh: () => void) {
-  try {
-    await write();
-  } catch {
-    noteContentBlockerWriteFailure();
-  } finally {
-    refresh();
-  }
-}
 
 export function PrivacyPane({ profileId, site }: { profileId: string | null; site: string | null }) {
   const [blocker, refresh, unavailable] = useContentBlocker({ countOutages: true });
@@ -155,50 +104,7 @@ export function PrivacyPane({ profileId, site }: { profileId: string | null; sit
 }
 
 const RULES_LOADED = { marginTop: space.xl } as const;
-const LISTS = { maxHeight: 420, marginTop: space.m } as const;
 const SITE_LIST = { maxHeight: 380, marginTop: space.l } as const;
-
-function FilterListsSheet() {
-  const [blocker, refresh] = useContentBlocker();
-  const toggle = async (l: FilterList, on: boolean) => {
-    if (!blocker) return;
-    await writeBlocker(() => setFilterList(blocker, l.id, on), refresh);
-  };
-  return (
-    <Sheet size="l" onClose={closeSettingsSheet}>
-      <DialogTitle subtitle={setting("privacy.filterLists").description}>Advanced Ad Block Settings</DialogTitle>
-      <ScrollView style={LISTS}>
-        {CATEGORIES.map((c) => {
-          const lists = blocker?.lists.filter((l) => l.category === c.id) ?? [];
-          if (!lists.length) return null;
-          return (
-            <View key={c.id}>
-              <SectionHeader title={c.section} />
-              <Group>
-                {lists.map((l) => (
-                  <Row
-                    key={l.id}
-                    title={<Checkbox value={l.enabled} onChange={(v) => void toggle(l, v)} label={l.title} />}
-                    description={l.defaultOn ? `${filtersText(l.filters)} · On by default` : filtersText(l.filters)}
-                  />
-                ))}
-              </Group>
-            </View>
-          );
-        })}
-      </ScrollView>
-      <DialogActions
-        note={
-          <Text size="caption" tone="textTertiary">
-            {blocker?.version ? `Blocking by uBlock Origin ${blocker.version}, included with Ardia. Its lists update on their own.` : ""}
-          </Text>
-        }
-      >
-        <Button title="Done" kind="primary" onPress={closeSettingsSheet} />
-      </DialogActions>
-    </Sheet>
-  );
-}
 
 function ZoomLevels() {
   const [selected, setSelected] = useSettingsProfile();
