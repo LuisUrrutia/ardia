@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { docs, removedStagings, stagingRemovals } from "../../test-native/index.ts";
-import { loadSession } from "./persist.ts";
+import { flushPersistence, loadSession, startPersistence } from "./persist.ts";
+import { useBrowser } from "../browser/store.ts";
+import { useDownloadProgress, withLiveProgress } from "../downloads/progress.ts";
+import { takeDownloadWork } from "../telemetry/downloadWork.ts";
 
 const paused = {
   id: "wk-download-1",
@@ -58,4 +61,85 @@ test("a version 1 or 2 document drops the staging id and destination it kept bes
     assert.ok(!("stagingId" in left) && !("destination" in left) && !("destination" in done));
     stagingRemovals.ok = true;
   }
+});
+
+const running = { ...paused, id: "running-1", state: "downloading", paused: false, received: 0, total: 200, speed: 0 };
+
+function persisting(run) {
+  docs.clear();
+  useDownloadProgress.setState({}, true);
+  const stop = startPersistence();
+  useBrowser.getState().createWindow({ url: "about:blank" });
+  flushPersistence();
+  takeDownloadWork();
+  let notified = 0;
+  const unsubscribe = useBrowser.subscribe(() => notified++);
+  const report = (patch) => {
+    useBrowser.getState().upsertDownload({ ...running, ...patch });
+    flushPersistence();
+    return docs.get("downloads.json");
+  };
+  try {
+    run(report, () => notified);
+  } finally {
+    unsubscribe();
+    stop();
+  }
+}
+
+const listed = () => withLiveProgress(useBrowser.getState().downloads).find((d) => d.id === running.id);
+
+test("progress alone wakes no workspace subscriber and leaves downloads.json alone, and the rows still read it", () => {
+  persisting((report, notified) => {
+    const started = report({});
+    const afterStart = notified();
+    const records = useBrowser.getState().downloads;
+    for (const received of [10, 50, 100]) {
+      assert.equal(report({ received, speed: received * 2 }), started, "progress alone must not rewrite the history");
+      assert.deepEqual([listed().received, listed().total, listed().speed], [received, 200, received * 2]);
+    }
+    assert.equal(notified(), afterStart, "progress alone must not notify the workspace store");
+    assert.equal(useBrowser.getState().downloads, records);
+    assert.deepEqual(takeDownloadWork(), { download_progress_updates: 4, download_history_writes: 1, download_history_kb_written: Math.round(started.length / 1024) });
+  });
+});
+
+test("pause, danger and a rename still save, with the bytes received so far, and a download running at quit is saved as failed", () => {
+  persisting((report) => {
+    report({ received: 100, speed: 20 });
+    for (const patch of [{ paused: true }, { dangerous: true }, { path: "/d/renamed", filename: "renamed" }]) {
+      const saved = JSON.parse(report({ received: 100, speed: 20, ...patch })).downloads[0];
+      for (const [key, value] of Object.entries(patch)) assert.equal(saved[key], value);
+      assert.deepEqual([saved.state, saved.received, saved.total], ["failed", 100, 200]);
+    }
+    assert.equal(loadSession().downloads[0].state, "failed");
+  });
+});
+
+test("a finished download keeps its final size across a relaunch, and its progress is dropped", () => {
+  persisting((report) => {
+    report({ received: 100, total: 0, speed: 20 });
+    report({ state: "finished", path: "/d/done", staging: null, total: 0, received: 12345, speed: 0 });
+    assert.deepEqual(useDownloadProgress.getState(), {});
+    assert.deepEqual([listed().received, listed().total], [12345, 0]);
+    const restored = loadSession().downloads[0];
+    assert.deepEqual([restored.state, restored.path, restored.received, restored.total], ["finished", "/d/done", 12345, 0]);
+  });
+});
+
+test("a download that is removed, cancelled before it has a path or forgotten with its session leaves no progress behind", () => {
+  persisting((report) => {
+    report({ received: 10 });
+    useBrowser.getState().removeDownload(running.id);
+    assert.deepEqual(useDownloadProgress.getState(), {});
+    report({ received: 20 });
+    report({ state: "cancelled", path: "" });
+    assert.deepEqual(useDownloadProgress.getState(), {});
+    assert.equal(useBrowser.getState().downloads.some((d) => d.id === running.id), false);
+    report({ path: "", received: 30 });
+    assert.deepEqual(useDownloadProgress.getState(), {}, "a download with no path yet isn't listed, so it has no progress either");
+    report({ received: 40, profile: "work" });
+    useBrowser.getState().forgetDownloads("work");
+    assert.deepEqual(useDownloadProgress.getState(), {});
+  });
 });
