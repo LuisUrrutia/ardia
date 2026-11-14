@@ -628,6 +628,16 @@ class BrowseEndToEnd(unittest.TestCase):
         self.assertEqual(report["prompt"], "reject")
         self.assertIn("late-buy", report["clicked"])
 
+    def test_press_on_a_wrapper_focuses_the_field_inside_and_a_hidden_one_is_explained(self):
+        session = "focus"
+        self.browse("open", self.url("focus.html"), session=session)
+        self.browse("press", "#wrap", "Enter", session=session)
+        self.assertEqual(json.loads(self.browse("get", "text", "#report", session=session).stdout), {"keys": ["Enter"]})
+        hidden = self.browse("press", "#hidden-q", "Enter", session=session, check=False)
+        self.assertNotEqual(hidden.returncode, 0)
+        self.assertIn("can't take focus", hidden.stderr)
+        self.assertNotIn("DOM.focus", hidden.stderr)
+
     def test_open_returns_a_page_whose_load_never_ends_with_a_note(self):
         import socket
 
