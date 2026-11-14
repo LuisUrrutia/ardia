@@ -4,6 +4,8 @@ import type { BrowserWindow } from "../browser/types";
 import type { BrowserState } from "../browser/store";
 import { engineProfile, isIncognitoProfile, privateSession } from "../browser/model";
 import { focusedWindowOf, patchWindowUi } from "../windows/ui";
+import { awaitsKeep } from "./status";
+import { noteDownloadsPanel } from "../telemetry/downloadsPanelCounts";
 
 export type DownloadsSlice = {
   downloads: Download[];
@@ -51,7 +53,9 @@ export const createDownloadsSlice: StateCreator<BrowserState, [], [], DownloadsS
       }
       const downloads = exists ? s.downloads.map((x) => (x.id === d.id ? d : x)) : [d, ...s.downloads].slice(0, MAX_DOWNLOADS);
       const focused = focusedWindowOf(s);
-      const open = !exists && focused && downloadVisibleIn(s, d, s.windows[focused]);
+      const newlyHeld = awaitsKeep(d) && !s.downloads.some((x) => x.id === d.id && awaitsKeep(x));
+      const open = newlyHeld && focused && downloadVisibleIn(s, d, s.windows[focused]) && !s.windowUi[focused]?.downloadsOpen;
+      if (open) noteDownloadsPanel("heldOpen");
       return { downloads, ...(open ? patchWindowUi(s, focused, { downloadsOpen: true }) : {}) };
     });
   },
