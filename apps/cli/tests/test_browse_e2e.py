@@ -686,6 +686,13 @@ class BrowseEndToEnd(unittest.TestCase):
         self.browse("click", "#currency", session=session)
         self.assertEqual(json.loads(self.browse("get", "text", "#report", session=session).stdout), {"clicked": ["currency"]})
 
+    def test_click_dismisses_a_long_preference_center_behind_its_backdrop(self):
+        session = "prefcenter"
+        self.browse("open", self.url("prefcenter.html"), "--show", session=session)
+        said = self.browse("click", "#search", session=session).stdout
+        self.assertIn('"Reject All" button was clicked (reject)', said)
+        self.assertEqual(json.loads(self.browse("get", "text", "#report", session=session).stdout), {"clicked": ["search"], "choice": "reject"})
+
     def test_click_leaves_a_dialog_that_is_not_about_cookies_alone(self):
         session = "invite"
         self.browse("open", self.url("invite.html"), "--show", session=session)
