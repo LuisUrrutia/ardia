@@ -131,6 +131,25 @@ test("a plain new-tab click its rule leaves in place still opens the way Open ne
   S().updateSettings({ newTabLinksOpenIn: "tab" });
 });
 
+test("a plain new-tab click its rule leaves in a Little Ardia window loads there when Little Ardia keeps new-tab links", async () => {
+  const { personal } = fresh();
+  store.resetAirTrafficForTests({ rules: [rule({ when: site("mail.example"), open: "littleArdia" })], fallback: null });
+  const small = S().createWindow({ kind: "small", url: "https://chat.example/" });
+  const inSmall = activeTabId(S(), small);
+  const page = { windowId: small, tabId: inSmall, profileId: personal };
+
+  S().updateSettings({ littleArdiaOpensNewTabLinks: true });
+  openFromPage({ url: "https://mail.example/kept", disposition: "foreground", opens: "tab", userGesture: true, routed: true, keyed: false }, page);
+  await tick();
+  assert.equal(S().tabs[inSmall].page.nav?.url, "https://mail.example/kept");
+
+  S().updateSettings({ littleArdiaOpensNewTabLinks: false });
+  openFromPage({ url: "https://mail.example/out", disposition: "foreground", opens: "tab", userGesture: true, routed: true, keyed: false }, page);
+  await tick();
+  assert.ok(tabsAt("https://mail.example/out").some((t) => t.id !== inSmall));
+  S().updateSettings({ littleArdiaOpensNewTabLinks: true });
+});
+
 test("a link from another app with a group rule joins the group's copy in the window shown last, and opens its collapsed group", async () => {
   const { work } = fresh();
   const first = S().createWindow({ url: "https://inbox.example/", profileId: work });

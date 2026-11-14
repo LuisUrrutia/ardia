@@ -102,6 +102,7 @@ function openRoutedLink(s: BrowserState, request: OpenWindowRequest, page: PageR
   }
   if (how === "foreground" && request.opens !== "tab" && page.tabId) return s.navigate(page.tabId, url, { userInitiated: true, gated });
   if (how === "foreground" && !request.keyed && page.tabId) {
+    if (isSmall(s, w.id) && s.settings.littleArdiaOpensNewTabLinks) return s.navigate(page.tabId, url, { userInitiated: true, gated });
     const route = newTabLinkRoute(s, page.tabId, url);
     if (route === "peek") return void s.openPeek(page.tabId, url, request.point ?? null);
     if (route === "otherSite") return void s.openPeek(page.tabId, url, request.point ?? null, { landing: siteLanding(s.tabs[page.tabId]!.url, "tab") });
