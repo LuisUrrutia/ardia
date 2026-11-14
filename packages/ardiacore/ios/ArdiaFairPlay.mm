@@ -64,6 +64,8 @@ NSString *HttpsURL(NSDictionary *d, NSString *key) {
   __weak ArdiaCoreTab *_owner;
   NSString *_frame;
   NSInteger _generation;
+  NSInteger _loads;
+  NSInteger _load;
   NSInteger _playedGeneration;
   NSInteger _failedGeneration;
   BOOL _playing;
@@ -129,8 +131,8 @@ NSString *HttpsURL(NSDictionary *d, NSString *key) {
     return;
   } else if ([op isEqualToString:@"license"]) {
     NSString *ckc = Text(message, @"ckc", kMaxLicense);
-    if (WholeNumber(message, @"gen", 1, INT_MAX, &generation) && generation == _generation && ckc.length)
-      [self send:@{@"op" : @"license", @"gen" : @(generation), @"ckc" : ckc}];
+    if (WholeNumber(message, @"gen", 1, INT_MAX, &generation) && generation == _generation && _load && ckc.length)
+      [self send:@{@"op" : @"license", @"gen" : @(_load), @"ckc" : ckc}];
   } else if ([op isEqualToString:@"play"] || [op isEqualToString:@"pause"]) {
     [self send:@{@"op" : op}];
   } else if ([op isEqualToString:@"seek"]) {
@@ -189,6 +191,7 @@ NSString *HttpsURL(NSDictionary *d, NSString *key) {
       [self send:@{@"op" : @"stop"}];
       [self setPlaying:NO];
       _generation = generation;
+      _load = 0;
       _failedGeneration = generation;
     }
     return [self deliver:@{@"event" : @"failed", @"gen" : @(generation), @"step" : @"playback"} to:tab frame:frameId];
@@ -204,13 +207,15 @@ NSString *HttpsURL(NSDictionary *d, NSString *key) {
   _owner = tab;
   _frame = [frameId copy];
   _generation = generation;
+  _load = 0;
   _pageMuted = Flag(message, @"muted");
   double volume = 1;
   Finite(message, @"volume", &volume);
   if (![self ensureHelper]) return [self failed:@"player" generation:generation];
+  _load = ++_loads;
   [self send:@{
     @"op" : @"load",
-    @"gen" : @(generation),
+    @"gen" : @(_load),
     @"cert" : certificate,
     @"playlist" : playlist,
     @"volume" : @(MIN(MAX(volume, 0), 1)),
@@ -301,8 +306,9 @@ NSString *HttpsURL(NSDictionary *d, NSString *key) {
   ArdiaCoreTab *owner = _owner;
   if (!owner || owner.closed || owner.discarded) return [self stop];
   NSString *name = Text(event, @"event", 16);
-  NSInteger generation = 0;
-  const BOOL current = WholeNumber(event, @"gen", 1, INT_MAX, &generation) && generation == _generation;
+  NSInteger load = 0;
+  const BOOL current = _load && WholeNumber(event, @"gen", 1, INT_MAX, &load) && load == _load;
+  const NSInteger generation = _generation;
   if ([name isEqualToString:@"position"] && current) {
     const BOOL playing = Flag(event, @"playing");
     [self setPlaying:playing];
@@ -318,7 +324,9 @@ NSString *HttpsURL(NSDictionary *d, NSString *key) {
   } else if (![name isEqualToString:@"remote"] && !current) {
     return;
   }
-  [self deliver:event to:owner frame:_frame];
+  NSMutableDictionary *relabeled = [event mutableCopy];
+  if (current) relabeled[@"gen"] = @(generation);
+  [self deliver:relabeled to:owner frame:_frame];
 }
 
 - (void)failed:(NSString *)step generation:(NSInteger)generation {
@@ -378,6 +386,7 @@ NSString *HttpsURL(NSDictionary *d, NSString *key) {
   _owner = nil;
   _frame = nil;
   _generation = 0;
+  _load = 0;
   _playedGeneration = 0;
   _failedGeneration = 0;
 }

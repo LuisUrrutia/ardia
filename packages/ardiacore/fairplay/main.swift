@@ -96,6 +96,8 @@ final class Track: NSObject, AVContentKeySessionDelegate, AVAssetResourceLoaderD
     if cancelled || announcedFailure { return }
     announcedFailure = true
     send(["event": "failed", "gen": generation, "step": step])
+    cancel()
+    if current === self { player.pause() }
   }
 
   func cancel() {
