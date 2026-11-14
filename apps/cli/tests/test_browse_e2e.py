@@ -653,6 +653,13 @@ class BrowseEndToEnd(unittest.TestCase):
         self.assertIn("the page navigated since that snapshot", stale.stderr)
         self.assertIn('the same textbox "Search" as @e', stale.stderr)
 
+    def test_a_click_on_a_checkbox_hidden_behind_its_label_clicks_the_label(self):
+        session = "chips"
+        self.browse("open", self.url("chips.html"), "--show", session=session)
+        said = self.browse("click", "#hvac", session=session).stdout
+        self.assertIn("so the click went to the label", said)
+        self.assertEqual(json.loads(self.browse("get", "text", "#report", session=session).stdout), {"hvac": False, "plumbing": True})
+
     def test_open_returns_a_page_whose_load_never_ends_with_a_note(self):
         import socket
 

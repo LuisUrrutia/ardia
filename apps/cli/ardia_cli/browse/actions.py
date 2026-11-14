@@ -391,7 +391,7 @@ async def target_point(page, element, humanize: bool, check_cover: bool = True):
     await scroll_into_view(page, element, humanize)
     tried = set()
     for _ in range(3):
-        box = await element_box(page, element)
+        box = await settled_box(page, element)
         if box is None:
             raise BrowseError(f"Element {element.label} has no visible box (hidden or zero-size)", code="not_visible")
         left, top, right, bottom = box
@@ -502,6 +502,14 @@ async def click(page, element, humanize: bool, count: int = 1, button: str = "le
     try:
         x, y, _ = await target_point(page, element, humanize)
     except BrowseError as error:
+        if error.code == "not_visible":
+            stand_in = await visible_label(page, element)
+            if stand_in is None:
+                raise
+            command_metrics.flag("clicked_label_of_hidden_input", True)
+            await click(page, stand_in, humanize, count, button)
+            page.state.click_note = f"{element.label} is hidden and drawn by its label, so the click went to the label"
+            return
         if error.code != "outside_viewport" or count != 1 or button != "left":
             raise
         await dom_click(page, element, error)
@@ -515,6 +523,11 @@ async def click(page, element, humanize: bool, count: int = 1, button: str = "le
             await mouse.click(x, y, button=which, click_count=number, humanize=False)
 
     await expect_input(page, element.frame, lambda: page.input.gesture("click", press), {"mousedown": count, "mouseup": count}, "The click", element)
+
+
+async def visible_label(page, element):
+    remote = await page.call(VISIBLE_LABEL, element, frame=element.frame, by_value=False)
+    return await page.element_from(remote, element.frame, f"the label of {element.label}")
 
 
 async def scroll_lock(page, element) -> str | None:
@@ -556,8 +569,21 @@ async def focus_field(page, element, info, humanize: bool, tolerate_detach: bool
             raise
 
 
+BOX_SETTLE_POLL = 0.05
+BOX_SETTLE_LIMIT = 1.0
 CENTER = "(el) => { const before = el.getBoundingClientRect(); el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' }); const after = el.getBoundingClientRect(); return Math.abs(after.top - before.top) + Math.abs(after.left - before.left) > 1; }"
 CONSENT_SETTLE = 0.5
+VISIBLE_LABEL = """(el) => {
+  if (!(el instanceof HTMLInputElement) || !/^(checkbox|radio)$/.test(el.type)) return null;
+  const shown = (node) => {
+    const rect = node.getBoundingClientRect();
+    return rect.width >= 2 && rect.height >= 2 && (!node.checkVisibility || node.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }));
+  };
+  const labels = [...(el.labels || [])];
+  const wrapping = el.closest("label");
+  if (wrapping && !labels.includes(wrapping)) labels.push(wrapping);
+  return labels.find(shown) || null;
+}"""
 SCROLL_LOCK = """(el) => {
   const shown = (node) => node.checkVisibility ? node.checkVisibility({ checkVisibilityCSS: true }) : !!node.offsetParent;
   const dialogs = [...document.querySelectorAll("dialog[open], [role=dialog], [role=alertdialog], [aria-modal=true]")]
@@ -1174,6 +1200,19 @@ def drop_point(box: tuple, source: tuple, side: str | None) -> tuple[float, floa
     if vertical:
         return cx, top + (bottom - top) * share
     return left + (right - left) * share, cy
+
+
+async def settled_box(page, element) -> tuple | None:
+    box = await element_box(page, element)
+    deadline = asyncio.get_running_loop().time() + BOX_SETTLE_LIMIT
+    while box is not None and asyncio.get_running_loop().time() < deadline:
+        await asyncio.sleep(BOX_SETTLE_POLL)
+        now = await element_box(page, element)
+        if now is None or max(abs(before - after) for before, after in zip(box, now)) <= 1:
+            return now
+        command_metrics.flag("waited_for_box_to_settle", True)
+        box = now
+    return box
 
 
 async def element_box(page, element) -> tuple | None:
