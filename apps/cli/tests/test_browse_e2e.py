@@ -682,7 +682,8 @@ class BrowseEndToEnd(unittest.TestCase):
         self.assertIn(f"Saved to {target}", said)
         self.assertIn("a list of 900 items", said)
         self.assertIn("walking", said)
-        self.assertLess(len(said), 800)
+        self.assertLess(len(said), 3800)
+        self.assertIn("more rows in the file", said)
         value = self.data / "out" / "title.txt"
         self.assertIn("text starting", self.browse("eval", "document.title", "--out", str(value), session=session).stdout)
         self.assertEqual(value.read_text(), self.browse("get", "title", session=session).stdout.strip())

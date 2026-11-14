@@ -617,7 +617,8 @@ first 12 lines; `read --scroll` saves its rows): the client asks the daemon for 
 eval's value as JSON, or a string as is; `read` pages as JSON for a `.json` path, else as text), redacted, through a
 temporary file, and prints a short digest (`✓ Saved to rows.json (84,210 characters): a list of 900 items with fields i, name`, then
 the first and last rows) plus the script's last 20 log lines. A failure prints the error and writes nothing. `read --out` lists each page with its status,
-read time and a 240-character excerpt (12 pages at most), so the transcript keeps evidence of what each page said:
+read time and a 500-character excerpt (12 pages at most); a saved list also prints its first rows, up to 3,000
+characters, so the agent reads what it saved and the transcript keeps evidence of what each page said:
 a BU Bench judge failed `bu3` items whose values lived only in a file. A script starts with `state`, one JSON object per
 session that the daemon keeps between scripts: the worker sends it back (at most once a second, on each command it
 awaits, and at the end), so a script that times out keeps what it gathered, and the timeout error lists what's in

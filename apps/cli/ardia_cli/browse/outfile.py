@@ -9,7 +9,8 @@ from ardia_cli.browse.errors import Usage
 TAKES_OUT = ("script", "eval", "read", "snapshot", "get")
 AS_TEXT = ("snapshot", "get")
 PREVIEW = 300
-EXCERPT = 240
+EXCERPT = 500
+SHOWN = 3000
 EXCERPT_PAGES = 12
 LOG_LINES = 20
 
@@ -86,6 +87,18 @@ def save(path: str, text: str) -> Path:
     return target
 
 
+def shown_rows(items: list) -> str:
+    lines, used = [], 0
+    for item in items:
+        line = json.dumps(item, ensure_ascii=False)
+        if used + len(line) > SHOWN and lines:
+            break
+        lines.append(line[:SHOWN])
+        used += len(line) + 1
+    rest = len(items) - len(lines)
+    return "\nrows:\n" + "\n".join(lines) + (f"\n… {rest} more rows in the file" if rest else "")
+
+
 def list_digest(items: list) -> str:
     head = f"a list of {len(items)} item{'s' if len(items) != 1 else ''}"
     if not items:
@@ -127,14 +140,14 @@ def content(command: str, data: dict, path: Path) -> tuple[str, str]:
         return value, f"text starting {json.dumps(value[:PREVIEW], ensure_ascii=False)}"
     text = json.dumps(value, ensure_ascii=False, indent=2) + "\n"
     if isinstance(value, list):
-        return text, list_digest(value)
+        return text, list_digest(value) + shown_rows(value)
     if isinstance(value, dict):
         keys = list(value)
         parts = [f"{key} ({len(value[key])} items)" if isinstance(value[key], list) else str(key) for key in keys[:20]]
         digest = f"an object with {len(keys)} key{'s' if len(keys) != 1 else ''}: {', '.join(parts)}{', …' if len(keys) > 20 else ''}"
         lists = [key for key in keys if isinstance(value[key], list) and value[key]]
         if lists:
-            digest += f"\n{lists[0]}: {list_digest(value[lists[0]])}"
+            digest += f"\n{lists[0]}: {list_digest(value[lists[0]])}" + shown_rows(value[lists[0]])
         return text, digest
     if value is None:
         return text, "nothing (the result was undefined or null)"
