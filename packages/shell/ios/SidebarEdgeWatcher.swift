@@ -13,6 +13,7 @@ final class SidebarEdgeWatcher {
 
   private var watched: [String: Watch] = [:]
   private var over: Set<String> = []
+  private var pressedInside: Set<String> = []
   private var unreported: Set<String> = []
   private var buttonHeld = false
   private var localMonitor: Any?
@@ -30,6 +31,7 @@ final class SidebarEdgeWatcher {
   private static let pointerEvents: NSEvent.EventTypeMask = [
     .mouseMoved, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged, .leftMouseUp, .rightMouseUp, .otherMouseUp,
   ]
+  private static let localEvents: NSEvent.EventTypeMask = pointerEvents.union([.leftMouseDown, .rightMouseDown, .otherMouseDown])
 
   func watch(id: String, on: Bool, hold: CGFloat, right: Bool, whilePressed: Bool) {
     watched[id] = on ? Watch(hold: max(0, hold), right: right, whilePressed: whilePressed) : nil
@@ -46,8 +48,13 @@ final class SidebarEdgeWatcher {
 
   private func noteButtons(_ event: NSEvent) {
     switch event.type {
+    case .leftMouseDown, .rightMouseDown, .otherMouseDown:
+      buttonHeld = true
+      pressedInside.formUnion(over.filter { watched[$0]?.whilePressed == true })
     case .leftMouseDragged, .rightMouseDragged, .otherMouseDragged: buttonHeld = true
-    case .leftMouseUp, .rightMouseUp, .otherMouseUp, .mouseMoved: buttonHeld = false
+    case .leftMouseUp, .rightMouseUp, .otherMouseUp, .mouseMoved:
+      buttonHeld = false
+      pressedInside = []
     default: break
     }
   }
@@ -62,8 +69,9 @@ final class SidebarEdgeWatcher {
         unreported.remove(id)
         continue
       }
+      if !pressed { pressedInside.remove(id) }
       let inColumn = Self.inColumn(point, window.frame, watch) && window.screen?.frame.contains(point) == true
-      let now = (watch.whilePressed || !pressed) && (isOver(point, of: window, watch, live: live, holding: over.contains(id))
+      let now = (pressed && pressedInside.contains(id)) || (watch.whilePressed || !pressed) && (isOver(point, of: window, watch, live: live, holding: over.contains(id))
         || (inColumn && over.contains(id) && onDock)
         || (inColumn && isOver(point, of: window, watch, live: false) && onDock && isTopBeneathDock(point, of: window, right: watch.right)))
       let fresh = unreported.remove(id) != nil
@@ -205,7 +213,7 @@ final class SidebarEdgeWatcher {
 
   private func start() {
     if localMonitor == nil {
-      localMonitor = NSEvent.addLocalMonitorForEvents(matching: Self.pointerEvents, handler: { [weak self] event in
+      localMonitor = NSEvent.addLocalMonitorForEvents(matching: Self.localEvents, handler: { [weak self] event in
         #if DEBUG
         self?.wakes["local", default: 0] += 1
         #endif
@@ -237,6 +245,7 @@ final class SidebarEdgeWatcher {
   func reset() {
     watched = [:]
     over = []
+    pressedInside = []
     unreported = []
     pointerOverride = nil
     stop()
