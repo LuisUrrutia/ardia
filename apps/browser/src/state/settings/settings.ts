@@ -118,6 +118,7 @@ export const SETTING_SPECS = {
   neverTranslateSites: shaped<Record<string, string[]>>({}, (v) => isRecordOf(v, isStringList), recordOf(STRING_LIST)),
   showTranslateButton: flag(true, SYNCED),
   autoPictureInPicture: flag(true, SYNCED),
+  blockAutoplayEverywhere: flag(false, SYNCED),
   commandScrollZoom: flag(true, SYNCED),
   videoUpscaling: flag(true, SYNCED),
   sidebarMediaControls: flag(true, SYNCED),

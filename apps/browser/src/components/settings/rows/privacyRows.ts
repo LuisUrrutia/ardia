@@ -18,6 +18,12 @@ export const privacyRows = {
       },
     },
     {
+      section: "All sites",
+      rows: {
+        blockAutoplayEverywhere: { title: "Block autoplay on every site", description: "Sites you set to Allow in Site Controls still autoplay. A click on a player always plays. Applies to pages you open or reload. Covers Chromium tabs only: WebKit tabs still autoplay for now.", keywords: ["autoplay", "auto play", "videos playing", "stop videos", "media autoplay", "muted autoplay"] },
+      },
+    },
+    {
       section: "Site permissions",
       rows: {
         sitePermissions: {
