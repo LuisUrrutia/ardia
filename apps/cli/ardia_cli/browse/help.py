@@ -77,6 +77,8 @@ Init:        addinitscript <js> | removeinitscript <id>   (page main world, by r
 Batch:       batch [--bail] ["cmd args" | '["cmd","arg"]' ...]  (or one command per stdin line; # comments)
 Script:      script [file.js] [--timeout 90s]   (JS on stdin: loops over pages with page.goto/click/text, read())
 Notes:       notes [get|set|append|list|rm] [site] [text|-]   (plain per-site notes, shown atop snapshot)
+Flows:       flow steps | save <name> [--param k=v] | run <name> [--param k=v] [--fields a,b] [--where f=v] [--limit n]
+             flow list [site] | show <name> | rm <name>   (do a task once, then rerun it as one request)
 Auth Vault:  auth save <name> --url <https url> --username <u> [--password-stdin]
              auth login <name> [--username-selector s] [--password-selector s] [--submit-selector s]
              auth login <name> --credential-provider <plugin> [--item ref] [--url url]
@@ -252,6 +254,20 @@ COMMANDS = {
              "Plain notes per site (host[:port]) for your own agent, in <data dir>/Notes/<site>.md (0600, 8 KB each).\n"
              "Without a site it's the session tab's (--tab <id> for another tab's). - reads stdin. snapshot prints a\n"
              "site's notes first, and so does an action that lands on another site.",
+    "flow": "ardia browse flow steps [--all]\n"
+            "ardia browse flow save <name> [--from n] [--to n] [--param k=v]... [--output s2r1] [--description text]\n"
+            "ardia browse flow run <name> [--param k=v]... [--fields a,b.c] [--where field=value]... [--limit n]\n"
+            "  [--allow-write all|w1,w2] [--tier page|replay] [--site s] [--timeout 60s]\n"
+            "ardia browse flow list [site] | show <name> [--site s] | rm <name> [--site s]\n\n"
+            "The session keeps its last 200 actions with the first-party JSON each one loaded (and JSON a page embeds:\n"
+            "__NEXT_DATA__, JSON-LD, window.x = {...}). save turns the steps since the last save (from the last open) into\n"
+            "a flow for the site, in <data dir>/Flows/<site>/<name>.json (0600): typed text and query values the requests\n"
+            "sent become params, and no cookie, auth or token header, secret field or credential query value is kept.\n"
+            "run fetches the answer from a background tab on the site (your logins stay in Ardia), then falls back to\n"
+            "replaying the commands; it checks the answer still has the recorded shape and prints the main list as\n"
+            "items. --where keeps items whose field contains the value; unknown fields fail with the valid ones.\n"
+            "Writes (POST, PUT, DELETE, a GET to /logout) are sent only with --allow-write. Codes: auth_expired, blocked,\n"
+            "rate_limited, drifted, outcome_unknown, write_not_allowed. open and snapshot list a site's flows once.",
     "read": "ardia browse read [url...] [--links <pattern>] [-s <selector>] [--stdin] [--limit n] [--timeout ms] [--http] [--list] [--out <file>]\n"
             "ardia browse read [-s <list>] --scroll [--limit rows] [--match <text>] [--timeout ms]\n\n"
             "Reads each page in a background tab of this session's own (four at a time, through your logins, after its\n"

@@ -425,6 +425,52 @@ class BrowseEndToEnd(unittest.TestCase):
         self.assertIn("Removed", self.browse("notes", "rm", session=session).stdout)
         self.assertFalse(self.browse("snapshot", "-i", session=session).stdout.startswith("#"))
 
+    def test_saved_flow_records_a_search_and_reruns_it_with_another_param(self):
+        session = "flows"
+        site = f"127.0.0.1:{self.http_port}"
+        self.browse("open", self.url("flowsearch.html"), "--show", session=session)
+        self.browse("fill", "#q", "kettle", session=session)
+        clicked = self.browse("click", "#go", session=session).stdout
+        self.assertIn("Steel kettle", self.browse("get", "text", "#results", session=session).stdout, clicked)
+        steps = self.browse("flow", "steps", session=session).stdout
+        self.assertIn("[2] fill #q kettle", steps)
+        self.assertIn(f"s3r1 GET http://{site}/flowdata/kettle.json?q=kettle 200 json", steps)
+        self.assertNotIn("s1r1", steps)
+        saved = json.loads(self.browse("flow", "save", "search", "--description", "Search the fixture shop", "--json", session=session).stdout)["data"]
+        self.assertEqual(saved["params"], [{"name": "q", "example": None, "source": "typed"}])
+        self.assertEqual(saved["output"], "s3r1")
+        path = self.data / "Flows" / site / "search.json"
+        self.assertEqual((stat_mode(path.parent.parent), stat_mode(path.parent), stat_mode(path)), (0o700, 0o700, 0o600))
+        stored = json.loads(path.read_text())
+        self.assertNotIn("kettle", json.dumps(stored))
+        self.assertEqual(stored["steps"][2]["requests"][0]["url"], f"http://{site}/flowdata/{{{{q}}}}.json?q={{{{q}}}}")
+        ran = json.loads(self.browse("flow", "run", "search", "--param", "q=toaster", "--fields", "title,price", "--limit", "2", "--json",
+                                     session=session).stdout)["data"]
+        self.assertEqual((ran["tier"], ran["verified"]), ("page", True))
+        self.assertEqual(ran["result"], {"list": "results", "total": 3, "matched": 3,
+                                         "items": [{"title": "Two-slot toaster", "price": 25}, {"title": "Four-slot toaster", "price": 40}]})
+        filtered = self.browse("flow", "run", "search", "--param", "q=toaster", "--where", "seller.name=bo", "--fields", "title",
+                               session=session).stdout
+        self.assertTrue(filtered.startswith("✓ search via page: 1 of 1 matching items in results\n"), filtered)
+        self.assertIn('{"title": "Oven toaster"}', filtered)
+        unknown = self.browse("flow", "run", "search", "--param", "q=toaster", "--fields", "titel", "--json", session=session, check=False)
+        self.assertEqual((unknown.returncode, json.loads(unknown.stdout)["code"]), (1, "unknown_field"))
+        self.assertIn("title, price, seller.name", json.loads(unknown.stdout)["error"])
+        missing = self.browse("flow", "run", "search", session=session, check=False)
+        self.assertIn("needs --param q=", missing.stderr)
+        elsewhere = json.loads(self.browse("flow", "run", "search", "--param", "q=kettle", "--json", session="flows-other").stdout)["data"]
+        self.assertEqual((elsewhere["tier"], elsewhere["result"]["total"]), ("page", 2))
+        hinted = self.browse("open", self.url("flowsearch.html"), session="flows-other").stdout
+        self.assertIn(f"# saved flows for {site} (`ardia browse flow run <name> --param k=v`, `flow show <name>`): search(q) — Search the fixture shop",
+                      hinted)
+        self.assertNotIn("# saved flows", self.browse("snapshot", "-i", session="flows-other").stdout)
+        self.assertIn(f"{site}  search(q) — Search the fixture shop", self.browse("flow", "list", session=session).stdout)
+        replayed = json.loads(self.browse("flow", "run", "search", "--param", "q=toaster", "--tier", "replay", "--json", session=session).stdout)["data"]
+        self.assertEqual((replayed["tier"], replayed["result"]["total"]), ("replay", 3))
+        self.assertEqual(self.browse("flow", "steps", session=session).stdout, "Nothing recorded since the last save\n")
+        self.assertIn("Removed flow search", self.browse("flow", "rm", "search", session=session).stdout)
+        self.assertFalse(path.exists())
+
     def test_text_output_is_capped(self):
         session = "cap"
         self.browse("open", self.url("many.html"), "--show", session=session)
@@ -1153,6 +1199,17 @@ class BrowseTokenPath(unittest.TestCase):
         self.assertEqual((refused.returncode, json.loads(refused.stdout)["code"]), (1, "no_session_tab"))
         self.assertIn(self.url("form.html"), self.browse("tab", "active", session="token-attach").stdout)
         self.assertEqual(self.browse("get", "url", session="token-attach").stdout, self.url("form.html") + "\n")
+
+    def test_saved_flow_over_the_token_policy(self):
+        session = "token-flows"
+        self.browse("open", self.url("flowsearch.html"), "--show", session=session)
+        self.browse("batch", session=session, stdin="fill #q kettle\nclick #go\n")
+        self.assertIn("s3r1 GET", self.browse("flow", "steps", session=session).stdout)
+        self.browse("flow", "save", "token-search", session=session)
+        ran = json.loads(self.browse("flow", "run", "token-search", "--param", "q=toaster", "--fields", "title", "--json",
+                                     session="token-flows-other").stdout)["data"]
+        self.assertEqual((ran["tier"], ran["result"]["total"], ran["result"]["items"][0]), ("page", 3, {"title": "Two-slot toaster"}))
+        self.browse("flow", "rm", "token-search", session=session)
 
     def test_html5_drag_over_the_token_policy(self):
         session = "token-dnd"

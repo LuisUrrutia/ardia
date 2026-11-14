@@ -22,7 +22,7 @@ ALIASES = {
 MUTATING = {
     "open", "click", "dblclick", "type", "fill", "press", "keyboard", "keydown", "keyup", "hover", "check", "uncheck",
     "select", "drag", "upload", "download", "scroll", "scrollintoview", "mouse", "back", "forward", "reload", "tab",
-    "find", "auth", "pushstate", "eval", "dialog", "batch", "storage", "cookies", "set", "state", "clipboard", "close", "script",
+    "find", "auth", "pushstate", "eval", "dialog", "batch", "storage", "cookies", "set", "state", "clipboard", "close", "script", "flow",
 }
 KNOWN_SCHEMES = ("http", "https", "about", "data", "file", "blob", "chrome", "view-source")
 LOOPBACK = re.compile(r"^(localhost|127\.\d+\.\d+\.\d+|\[::1\])(:\d+)?(/|$)")
@@ -526,6 +526,7 @@ async def cmd_pushstate(ctx: Ctx, argv):
 @command("snapshot")
 async def cmd_snapshot(ctx: Ctx, argv):
     from ardia_cli import notes
+    from ardia_cli.browse import flows
 
     options, args = parse(
         argv,
@@ -553,6 +554,10 @@ async def cmd_snapshot(ctx: Ctx, argv):
             body = changes.render(report)
     root = ctx.state.config.get("data_root")
     site, header = notes.header(Path(root), page.url) if root else (None, None)
+    saved = flows.hint(ctx.state, page.url)
+    if saved:
+        data["flows"] = saved
+        body = saved + "\n" + body
     if header:
         data["notes"] = {"site": site, "header": header}
         body = header + "\n" + body

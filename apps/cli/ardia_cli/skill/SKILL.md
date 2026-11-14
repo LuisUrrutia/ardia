@@ -18,7 +18,7 @@ ardia browse batch "tab active" "snapshot -i"  # the user's own page
 ```
 
 `snapshot -i` lists what you can act on with refs (`textbox "Name" [ref=e11]`). If it starts with
-`# notes for <site>`, follow them.
+`# notes` or `# saved flows`, use them.
 
 ## Read
 
@@ -29,7 +29,8 @@ ardia browse batch "tab active" "snapshot -i"  # the user's own page
 - A long or scroll-loaded list (`1–40 of 200`): `read --scroll` (the main list, or `-s <list>`; `--match <text>`).
 - Blocked, CAPTCHA or 429 (`read` says so): wait 30–60 s, retry, click a captcha checkbox once, then use the
   site's own search and pages, or another source.
-- Find a control with `find role button --name Save` or `snapshot -i -s <sel>`. Read pages with `read`, not `curl`.
+- Find a control with `find role button --name Save` or `snapshot -i -s <sel>`.
+- Redo a search later in one call: `flow save <name>` once done, then `flow run <name> --param k=v` (`flows.md`).
 
 ## Act
 
@@ -54,7 +55,7 @@ EOF
 
 ## Loops
 
-For steps that repeat per item, write one script, not a call per item.
+For steps that repeat per item, write one script.
 
 ```sh
 ardia browse script <<'EOF'
@@ -70,11 +71,11 @@ EOF
 - `page.goto/click/fill/select/press/text(sel)/links(pat)/snapshot('-i')`, `read(urls)`, `browse('cmd', …)`.
   The script runs outside the page (no `document`): DOM code goes in `page.evaluate((x) => …, x)`. Recipes:
   `references/script.md`.
-- Save data with `--out <file>` on `script`, `read` or `eval` beside your deliverables (`.csv`: rows become a
-  table). Build files from saved data, never from rows typed into code or retyped output. `--out` prints what it
-  saved: a value that never appeared in output is unverified. `state` keeps its contents between scripts.
-- Click with `page.click(sel)` (i-th match: `` `li >> nth=${i}` ``), not `el.click()` in `page.evaluate`: that
-  sends no pointer events; many controls miss it.
+- Save data with `--out <file>` (`script`, `read`, `eval`; `.csv` makes a table) beside your deliverables. Build
+  files from saved data, never from rows typed into code or retyped output. `--out` prints what it saved: a value
+  that never appeared in output is unverified. `state` keeps its contents between scripts.
+- Click with `page.click(sel)` (i-th: `` `li >> nth=${i}` ``), not `el.click()` in `page.evaluate` (no pointer
+  events).
 
 ## Finish
 
@@ -88,7 +89,7 @@ EOF
 
 `ardia notes` keeps one short page per site for every agent the user runs; `snapshot` prints it first.
 
-- Write it in the same call as your last action (`notes append "…"` as a batch line), never as a call of its own;
+- Write it in the same call as your last action (`notes append "…"` as a batch line), not as its own call;
   `notes set` rewrites a stale page.
 - Write what saves the next run a step: where things are, formats, defaults, pitfalls, stated preferences. Never
   secrets, personal data or the task's own content.

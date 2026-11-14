@@ -17,6 +17,8 @@ ACT_COUNTS = frozenset({"cell_edits"})
 CHANGE_FLAGS = frozenset({"change_text", "change_run_choices", "open_report", "open_moved_tab", "snapshot_disabled_folded", "names_clipped",
                           "waited_for_reaction"})
 CHANGE_COUNTS = frozenset({"change_text_chars"})
+FLOW_FLAGS = frozenset({"flow_saved", "flow_hint_shown", "flow_run_page", "flow_run_replay", "flow_fell_back", "flow_drifted", "flow_shaped"})
+FLOW_COUNTS = frozenset({"flow_requests_kept", "flow_params", "flow_writes", "flow_items"})
 FLAGS = frozenset({"daemon_spawned", "reconnected_after_idle", "output_truncated", "humanize", "unsettled", "daemon_answer_timed_out",
                    "followed_redrawn_ref", "script_eval_alias", "script_page_world_hint", "attach_refused", "viewport_set", "crashed_reloaded",
                    "selector_nth", "output_saved", "waited_for_element", "saved_to_file", "script_state_kept", "saved_as_csv", "script_timeout_read_hint", "click_scroll_locked", "open_still_loading", "focused_inner_field", "stale_ref_after_navigation", "clicked_label_of_hidden_input", "waited_for_box_to_settle", "frame_cross_process_box", "screenshot_unchanged"})
@@ -129,9 +131,9 @@ def clean(values) -> dict:
     if not isinstance(values, dict):
         return out
     for key, value in values.items():
-        if key in FLAGS | READ_FLAGS | ACT_FLAGS | CHANGE_FLAGS and isinstance(value, bool):
+        if key in FLAGS | READ_FLAGS | ACT_FLAGS | CHANGE_FLAGS | FLOW_FLAGS and isinstance(value, bool):
             out[key] = value
-        elif key in DURATIONS | COUNTS | ACT_COUNTS | CHANGE_COUNTS and isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
+        elif key in DURATIONS | COUNTS | ACT_COUNTS | CHANGE_COUNTS | FLOW_COUNTS and isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
             ceiling = MAX_MS if key in DURATIONS else MAX_COUNT
             out[key] = int(min(max(round(value), 0), ceiling))
     return out
