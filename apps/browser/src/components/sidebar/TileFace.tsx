@@ -14,6 +14,8 @@ import type { Settings } from "../../state/settings/settings";
 import { useQuietRows } from "./rowLook";
 import { useIsSleeping } from "../../state/tabs/sleepingTabs";
 import { tileLetterOf } from "../../lib/tileLetter";
+import { useTabState } from "../../state/tabs/tabStateWatch";
+import { isClosedTopApp } from "../../state/sidebar/rowState";
 
 const SELECTION_STROKE = 3;
 const GLASS_RING = 2;
@@ -67,6 +69,7 @@ const RichTileFace = memo(function RichTileFace({ tabId, badge, ...state }: Face
   const tileTheme = useTileTheme(tab?.url ?? "", tab?.favicon, tab?.customIcon, tab?.profileId ?? "");
   const glass = useGlass();
   const topApp = useSelectedTopApp();
+  const closed = useTabState(tabId, (s) => isClosedTopApp(s, tabId));
   if (!tab) return null;
   const { width, active } = state;
   const icon = (
@@ -77,7 +80,7 @@ const RichTileFace = memo(function RichTileFace({ tabId, badge, ...state }: Face
   );
   if (glass)
     return (
-      <GlassTile {...state} tileTheme={tileTheme} topApp={topApp}>
+      <GlassTile {...state} tileTheme={tileTheme} topApp={topApp} bare={closed}>
         {icon}
         {badge}
       </GlassTile>
@@ -142,7 +145,7 @@ const RichTileFace = memo(function RichTileFace({ tabId, badge, ...state }: Face
       </Surface>
     );
   return (
-    <RestingTile {...state}>
+    <RestingTile {...state} bare={closed}>
       {icon}
       {badge}
     </RestingTile>
@@ -169,7 +172,7 @@ function PlainSelectedTile({ width, outline, children }: { width: number; outlin
   );
 }
 
-export function RestingTile({ width, selected, hovered, pressed, children }: Omit<FaceState, "active"> & { children: ReactNode }) {
+export function RestingTile({ width, selected, hovered, pressed, bare = false, children }: Omit<FaceState, "active"> & { bare?: boolean; children: ReactNode }) {
   const theme = useTheme();
   const tokens = useSidebarTokens();
   const quiet = useQuietRows();
@@ -193,10 +196,11 @@ export function RestingTile({ width, selected, hovered, pressed, children }: Omi
     );
   if (glass)
     return (
-      <GlassTile width={width} active={false} selected={selected} hovered={hovered} pressed={pressed} tileTheme={null}>
+      <GlassTile width={width} active={false} selected={selected} hovered={hovered} pressed={pressed} tileTheme={null} bare={bare}>
         {children}
       </GlassTile>
     );
+  if (bare && !selected && !hovered && !pressed) return <View style={{ width, height: layout.pinnedHeight, alignItems: "center", justifyContent: "center" }}>{children}</View>;
   return (
     <View
       style={{
@@ -215,9 +219,10 @@ export function RestingTile({ width, selected, hovered, pressed, children }: Omi
   );
 }
 
-function GlassTile({ width, active, selected, hovered, pressed, tileTheme, topApp = "ring", children }: FaceState & { tileTheme: TileTheme | null; topApp?: TopAppLook; children: ReactNode }) {
+function GlassTile({ width, active, selected, hovered, pressed, tileTheme, topApp = "ring", bare = false, children }: FaceState & { tileTheme: TileTheme | null; topApp?: TopAppLook; bare?: boolean; children: ReactNode }) {
   const theme = useTheme();
   const tokens = useSidebarTokens();
+  if (bare && !active && !selected && !hovered && !pressed) return <View style={{ width, height: layout.pinnedHeight, alignItems: "center", justifyContent: "center" }}>{children}</View>;
   return (
     <View style={{ width, height: layout.pinnedHeight }}>
       <GlassFill radius={radius.pinned} state={pressed ? "pressed" : active && topApp !== "outline" ? "active" : hovered || selected ? "lit" : "rest"}>
