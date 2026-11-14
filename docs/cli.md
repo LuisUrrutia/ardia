@@ -23,7 +23,7 @@ organizing (`tabs`, `groups`, `apply`, `windows`, `commands`, `events`, `pinned`
 the last one closes, so a burst of commands shows one steady pill; turning the setting off hides it at once. One per
 window: the focused pane of a split, the full screen page, or the Peek while one is open
 (`apps/browser/src/components/window/CliControlPill.tsx`, `useCliIndicator` in `state/app/cliControl.ts`). Settings › Advanced ›
-Command line › Shrink the control pill to an icon and Stop (`compactCliPill`) keeps only the caller's icon and Stop, the
+Command line › Show the control pill as an icon and Stop (`compactCliPill`) keeps only the caller's icon and Stop, the
 line moving to its tooltip and accessibility label; nothing hides it.
 
 The pill names who runs the command (`ardia_cli/caller.py`). The command walks its own process ancestry once (parent
