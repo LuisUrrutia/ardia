@@ -6,6 +6,7 @@ import { useBrowser } from "../browser/store";
 import { capture, isSharing, saveContext, useTelemetry } from "./client";
 import type { SavedContext } from "./savedContext";
 import { noteDragsEnded } from "./stuckDrags";
+import { mainProcessWork } from "./mainProcessWork";
 import { appInfo } from "./transport";
 
 const CONTEXT_EVERY_MS = 10 * 60_000;
@@ -64,6 +65,8 @@ export async function recordContext(): Promise<SavedContext | null> {
   saveContext(context);
   return context;
 }
+
+export const takeMainProcessWork = async () => mainProcessWork(await diagnosticsSample().catch(() => ({})), Date.now());
 
 export const contextSamples = () => samples;
 

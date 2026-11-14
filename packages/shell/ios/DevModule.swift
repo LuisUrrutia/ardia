@@ -108,6 +108,11 @@ public class DevModule: Module {
       return ServerWindowDrag.blockedRects(window)
     }.runOnQueue(.main)
 
+    AsyncFunction("devDragRegionRects") { (windowId: String) -> [[Double]] in
+      guard let window = WindowManager.shared.window(windowId) else { return [] }
+      return ServerWindowDrag.blockedRects(window, rebuilt: false)
+    }.runOnQueue(.main)
+
     AsyncFunction("devDragRegionState") { (windowId: String) -> [String: Any] in
       guard let window = WindowManager.shared.window(windowId) else { return [:] }
       let counts = ServerWindowDrag.counts
@@ -123,6 +128,7 @@ public class DevModule: Module {
       }
       guard let window = WindowManager.shared.window(windowId) else { return false }
       ServerWindowDrag.pointerOverride = NSPoint(x: window.frame.minX + x, y: window.frame.maxY - top)
+      ServerWindowDrag.pointerMoved(in: window, at: NSPoint(x: x, y: window.frame.height - top))
       return true
     }.runOnQueue(.main)
 

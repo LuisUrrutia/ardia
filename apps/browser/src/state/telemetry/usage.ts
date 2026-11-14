@@ -14,7 +14,7 @@ import { appInfo, percentile } from "./transport";
 import { reportNativeCrashes } from "./errors";
 import { emitJourneys, journeysEnding, startJourneys } from "./journeys";
 import { commandBarPlacementLabel, takeOmniboxLatency, takeSearchSuggests } from "./track";
-import { contextProperties, contextSamples, hardwareProperties, noteAppMemory, recordContext, startContextSamples, stopContextSamples, watchHoverLost } from "./diagnostics";
+import { contextProperties, contextSamples, hardwareProperties, noteAppMemory, recordContext, takeMainProcessWork, startContextSamples, stopContextSamples, watchHoverLost } from "./diagnostics";
 import { emitTabPresses } from "./tabPresses";
 import { switcherSwitchProperties } from "./switcherPresses";
 import type { SavedContext } from "./savedContext";
@@ -301,7 +301,7 @@ async function sampleMemory() {
     }
     if (!total) return;
     noteAppMemory(mb(total));
-    capture("perf_memory", {
+    capture("perf_memory", { ...(await takeMainProcessWork()),
       total_mb: mb(total),
       browser_mb: mb(browser),
       gpu_mb: mb(gpu),

@@ -124,7 +124,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "How long launches, new tabs, tab switches and page loads take, step by step (for a launch: until the engine is up, the interface starts, the first window and the restored page): times and counts only, summed up once an hour, with how many tabs were open",
       "How many tabs a page opened were matched to your click on a link, opened at once because nothing was clicked or typed in that window in the 5 seconds before, or opened only after a 0.2 second wait for a click that never came, summed up once an hour",
       "At launch, in rough ranges: how many tabs and windows came back, how much history there is, and whether it's the first launch since the Mac started",
-      "Memory use and the number of tabs, once an hour",
+      "Memory use and the number of tabs, once an hour, with how much processor time Ardia's main process used and how often it woke up in that hour, how many times it worked out where its windows can be dragged from, and how many presses on a title bar came before it had",
     ],
   },
   {
