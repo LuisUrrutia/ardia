@@ -9,7 +9,7 @@ import { ALERT_LEADS, nowBadgeEvent } from "../live/meetings";
 import { SOURCES } from "../live/sources";
 import { dismissNowBadge, live, markRead, markUnread, setRepoHidden, updateCalendarSettings, updateFolder } from "../live/store";
 import { folderRepos, setShowNewRepos, showAllRepos } from "../live/repoFilter";
-import { noteLiveFolderColorPick, noteLiveRepoMenuPick } from "../telemetry/liveHides";
+import { noteLiveFolderColorPick, noteLiveRepoMenuPick } from "../telemetry/liveFolders";
 import type { LiveItem, LiveSourceId } from "../live/types";
 import type { GroupColor } from "../browser/types";
 import { groupColorItems } from "./groupMenu";

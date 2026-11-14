@@ -427,11 +427,11 @@ test("a live folder's menu has a group's Color submenu, without Match Site Color
 test("picking a colour from a live folder's menu saves it, Neutral clears it, None saves none, and each pick is counted", async () => {
   const { shellNativeModules } = await import("../../test-native/shell.ts");
   const { openLiveFolderMenu } = await import("../sidebar/liveMenus.ts");
-  const { takeLiveHideCounts } = await import("../telemetry/liveHides.ts");
+  const { takeLiveFolderCounts } = await import("../telemetry/liveFolders.ts");
   const id = createFolder("p", "pullRequests", []);
   const shell = shellNativeModules.ArdiaMenus;
   const real = shell.showMenu;
-  takeLiveHideCounts();
+  takeLiveFolderCounts();
   const pick = async (title) => {
     shell.showMenu = (shown) => Promise.resolve(shown.find((it) => it.id === "color").children.find((it) => it.title === title).id);
     try {
@@ -444,6 +444,6 @@ test("picking a colour from a live folder's menu saves it, Neutral clears it, No
   assert.equal(await pick("Green"), "green");
   assert.equal(await pick("Neutral"), null);
   assert.equal(await pick("None"), "none");
-  assert.equal(takeLiveHideCounts().live_folder_color_picks, 3);
+  assert.equal(takeLiveFolderCounts().live_folder_color_picks, 3);
   removeFolder(id);
 });
