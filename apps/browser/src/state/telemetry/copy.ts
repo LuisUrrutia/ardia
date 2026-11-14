@@ -97,6 +97,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "How many times automatic Picture in Picture held back because a playing tab's window was still on a screen, either though macOS reported it covered or when you switched to another app, summed up once an hour",
       "How many times automatic Picture in Picture held back in a WebKit tab because no video was playing at the moment you left it, summed up once an hour",
       "How many times you went back to a video's tab from its Picture in Picture window, for Chromium and WebKit tabs separately, summed up once an hour",
+      "How many times you dragged a Picture in Picture window, how many of those drags let the spot you grabbed slip from under the pointer, and how many had a window move that took longer than 8 ms, summed up once an hour. Never where it was",
       "How often a site panel (Site Controls, Zoom, blocked pop-ups) is closed by a click outside it or by Esc, how many times Site Controls set a site's Autoplay to Block or to Allow, how often the ⌃Tab switcher opens and how often it opens over a WebKit page, how many closed pinned tabs it left out and how many tabs opened in the background and not yet viewed it listed last, summed up once an hour",
       "Whether a profile switch came from the sidebar's profile switcher, whether it showed icons or dots, and whether it came within 2 seconds of a switcher press for a different profile (a corrected mis-click)",
       "The kind of command bar row you pick: history, bookmark, tab, address, search, calculator or action",

@@ -113,6 +113,7 @@ export type WebNotification = {
 };
 
 export type PictureInPictureState = { kind: "video" | "document"; active: boolean; fullScreenSpaces?: boolean; leftApp?: boolean };
+export type PictureInPictureDrag = { offCursor: boolean; slowMove: boolean };
 export type AutoPictureInPictureHold = "onScreen" | "appSwitch" | "nothingPlaying";
 export type ControlPress = { clickAt: number; control: number };
 export type ActivateRequest = { reason: "pictureInPicture" };
@@ -202,6 +203,7 @@ export type WebViewProps = ViewProps & {
   onNotificationClose?: (id: string) => void;
   onPictureInPicture?: (state: PictureInPictureState) => void;
   onAutoPictureInPictureKept?: (reason: AutoPictureInPictureHold) => void;
+  onPictureInPictureDragged?: (drag: PictureInPictureDrag) => void;
   onActivateRequest?: (request: ActivateRequest) => void;
   onDisplayMediaRequest?: (request: DisplayMediaRequest) => void;
   onWindowClose?: () => void;

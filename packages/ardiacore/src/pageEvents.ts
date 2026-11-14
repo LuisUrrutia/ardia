@@ -22,6 +22,7 @@ import type {
   PageSelection,
   PasswordPrompt,
   PictureInPictureState,
+  PictureInPictureDrag,
   ProtectedMediaRequest,
   ScrollState,
   SecurityInfo,
@@ -54,6 +55,7 @@ type NativeEvents = {
   onNotificationClose: { id: string };
   onPictureInPicture: PictureInPictureState;
   onAutoPictureInPictureKept: { appSwitch?: boolean; reason?: string };
+  onPictureInPictureDragged: PictureInPictureDrag;
   onActivateRequest: ActivateRequest;
   onDisplayMediaRequest: DisplayMediaRequest;
   onWindowClose: object;
@@ -100,6 +102,7 @@ const PAGE_EVENTS = {
   onNotificationClose: "notificationClose",
   onPictureInPicture: "pictureInPicture",
   onAutoPictureInPictureKept: "autoPictureInPictureKept",
+  onPictureInPictureDragged: "pictureInPictureDragged",
   onActivateRequest: "activateRequest",
   onDisplayMediaRequest: "displayMediaRequest",
   onWindowClose: "windowClose",
@@ -146,6 +149,7 @@ const unwrap: { [K in Handlers]: (e: NativeEvents[K]) => Parameters<NonNullable<
   onNotificationClose: (e) => [e.id],
   onPictureInPicture: (e) => [e],
   onAutoPictureInPictureKept: (e) => [e.reason === "nothingPlaying" ? "nothingPlaying" : e.appSwitch ? "appSwitch" : "onScreen"],
+  onPictureInPictureDragged: (e) => [{ offCursor: !!e.offCursor, slowMove: !!e.slowMove }],
   onActivateRequest: (e) => [e],
   onDisplayMediaRequest: (e) => [e],
   onWindowClose: () => [],
