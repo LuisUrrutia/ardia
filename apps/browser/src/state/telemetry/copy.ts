@@ -63,7 +63,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "How many times you collapsed or expanded a tab group from the tab strip across the top, summed up once an hour",
       "How many tab hover cards the tab strip across the top showed, and how many of those were for a tab from a profile other than the window's, summed up once an hour. Never which tab",
       "How many times the toolbar hid while you scrolled a page, and how many of those came less than a second after it had shown again, summed up once an hour. Never which page",
-      "While a window is being resized, how many size changes its page area got and how many of them it laid out again, summed up once an hour",
+      "While a window is being resized, how many size changes its page area got and how many of them it laid out again, and how many resizes were made from the window's centre with Option held, summed up once an hour",
       "How many pinned tabs and split views an import from Arc brought over, and for an import with spaces (Arc or Zen) how many spaces came over, how many went to a profile of their own because their Zen container keeps its own cookies, how many profiles with their own data they filled, and how many Essentials came over, summed up once an hour. Never which pages or names",
       "How many screen shares picked a tab, a window or a whole screen, how many times the share picker opened without Screen Recording permission, and how many times its Open System Settings button was pressed, summed up once an hour. Never which tab, window or screen",
       "How many automation rules waiting for approval had their notice held until the first window opened, summed up once an hour",
