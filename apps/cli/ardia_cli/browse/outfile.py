@@ -49,7 +49,9 @@ def run_saving(run, argv: list[str], command: str, path: str) -> int:
             sys.stdout.write(captured.getvalue())
             return code
         text = captured.getvalue()
-        target = save(path, text)
+        target = saved(path, text)
+        if target is None:
+            return 1
         telemetry.note_count("saved_to_file", True)
         lines = text.splitlines()
         sys.stdout.write(f"✓ Saved to {target} ({len(text):,} characters, {len(lines):,} lines). First lines:\n" + "\n".join(lines[:12]) + "\n")
@@ -67,7 +69,12 @@ def run_saving(run, argv: list[str], command: str, path: str) -> int:
         return code or 1
     data = payload.get("data") or {}
     text, summary = content(command, data, Path(path))
-    target = save(path, text)
+    if not text.strip():
+        sys.stderr.write(f"✗ {command} returned nothing to save, so {path} wasn't written\n")
+        return 1
+    target = saved(path, text)
+    if target is None:
+        return 1
     telemetry.note_count("saved_to_file", True)
     sys.stdout.write(f"✓ Saved to {target} ({len(text):,} characters): {summary}\n")
     logs = [str(line) for line in (data.get("logs") or [])][-LOG_LINES:]
@@ -77,14 +84,46 @@ def run_saving(run, argv: list[str], command: str, path: str) -> int:
 
 
 def save(path: str, text: str) -> Path:
+    import os
+    import tempfile
+
     from ardia_cli.redact import redact
 
     target = Path(path).expanduser()
+    if target.is_dir():
+        raise Usage(f"--out {path} is a folder; give a file path, like {Path(path) / 'data.json'}")
     target.parent.mkdir(parents=True, exist_ok=True)
-    temporary = target.with_name(f".{target.name}.part")
-    temporary.write_text(redact(text), encoding="utf-8")
-    temporary.replace(target)
+    handle, temporary = tempfile.mkstemp(prefix=f".{target.name}.", suffix=".part", dir=target.parent)
+    try:
+        with os.fdopen(handle, "w", encoding="utf-8") as out:
+            out.write(redact(text))
+        if target.exists():
+            os.chmod(temporary, target.stat().st_mode & 0o777)
+        else:
+            os.chmod(temporary, 0o666 & ~current_umask())
+        os.replace(temporary, target)
+    except BaseException:
+        Path(temporary).unlink(missing_ok=True)
+        raise
     return target
+
+
+def current_umask() -> int:
+    import os
+
+    mask = os.umask(0)
+    os.umask(mask)
+    return mask
+
+
+def saved(path: str, text: str, run_output: str = "") -> Path | None:
+    try:
+        return save(path, text)
+    except (OSError, Usage) as error:
+        reason = error.message if isinstance(error, Usage) else (error.strerror or str(error))
+        sys.stderr.write(f"✗ Couldn't write {path}: {reason}. The command ran; its output follows.\n")
+        sys.stdout.write(run_output or text)
+        return None
 
 
 def tabular(value) -> list | None:
@@ -150,6 +189,9 @@ def content(command: str, data: dict, path: Path) -> tuple[str, str]:
         rows = data.get("rows") or []
         text = json.dumps(rows, ensure_ascii=False, indent=2) if path.suffix.lower() == ".json" else "\n".join(map(str, rows)) + "\n"
         return text, f"{list_digest(rows)}\n(stopped: {data.get('stopped')}; {data.get('total')} rows in the list)"
+    if command == "read" and "pages" not in data and "content" in data:
+        body = str(data.get("content") or "")
+        return body + ("\n" if body and not body.endswith("\n") else ""), f"the page's text, starting {json.dumps(' '.join(body.split())[:EXCERPT], ensure_ascii=False)}"
     if command == "read":
         pages = data.get("pages") or []
         failed = sum(1 for page in pages if page.get("error"))

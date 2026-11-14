@@ -504,6 +504,12 @@ class State:
             try:
                 remote = await page.call("(s) => ardiaBrowse.query(s)", selector, frame=frame, by_value=False, read=True)
             except BrowseError as error:
+                if error.code in ("document_changed", "page_navigated", "frame_gone") and time.monotonic() + APPEAR_POLL < deadline:
+                    polled = True
+                    await asyncio.sleep(APPEAR_POLL)
+                    continue
+                if error.code != "page_script_error":
+                    raise
                 raise BrowseError(f"Invalid selector {selector}: {error.message}") from None
             element = await page.element_from(remote, frame, selector)
             if element is not None:

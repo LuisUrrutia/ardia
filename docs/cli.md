@@ -317,11 +317,15 @@ random offset inside the box. A selector (not a ref) that matches nothing yet is
 before `not_found` ("waited 3 s for it to appear") on every command that acts on or reads one element (`is` checks
 presence, so it doesn't wait): agents on hydrating pages, and scripts written Playwright-style, failed on elements
 that showed up a moment later. A click whose point is covered first tries two fixes, each once: when the cover is a
-cookie or consent layer (it or an ancestor holds consent text, or it's a fixed backdrop over half the viewport and a
-consent layer is showing), it clicks that layer's reject button (else accept, else close), says so in the output
+cookie or consent layer (the cover's nearest fixed, sticky, dialog or CMP-vendor ancestor, or a CMP layer behind a fixed
+backdrop over half the viewport, whose text names cookies or consent and is under 3,000 characters), it clicks that
+layer's reject button ("Reject all", "Necessary only"…), else accept ("Accept all", "I agree", "OK"…), else
+close, never a bare "Continue" or "Decline" on some other dialog, says so in the output
 (`A consent banner was in the way: … "Reject all" button was clicked (reject)`) and retries; otherwise it scrolls
 the element to the middle of the viewport (a sticky header over it) and retries. A left click on an element that still sits outside the page after that
-(a carousel slide translated to x = -2700, an off-canvas menu item) gets a DOM `click()` instead, and the output says so
+(a carousel slide translated to x = -2700) gets a DOM `click()` instead, and the output says so, but only when it is
+visible to CSS, at least 4×4, not clipped (sr-only), and inside a container that clips overflow; a honeypot at
+left:-9999px still fails
 (`dom_click_fallback`): one BU Bench agent hit `outside_viewport` 20 times on carousel cards. If it's still covered it fails with
 `covered by <tag#id.class>`, and one outside the laid-out viewport with `outside_viewport` (the point and the viewport
 size). A tab with no size yet (0×0, seen on a loaded hidden test instance) is waited for up to 2 s, then given a

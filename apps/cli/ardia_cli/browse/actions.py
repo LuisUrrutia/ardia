@@ -541,7 +541,22 @@ async def focus_field(page, element, info, humanize: bool, tolerate_detach: bool
 
 CENTER = "(el) => { const before = el.getBoundingClientRect(); el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' }); const after = el.getBoundingClientRect(); return Math.abs(after.top - before.top) + Math.abs(after.left - before.left) > 1; }"
 CONSENT_SETTLE = 0.5
-DOM_CLICK = "(el) => { if (!el.isConnected) return false; el.focus && el.focus({ preventScroll: true }); el.click(); return true; }"
+DOM_CLICK = """(el) => {
+  if (!el.isConnected || (el.checkVisibility && !el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }))) return false;
+  const rect = el.getBoundingClientRect();
+  if (rect.width < 4 || rect.height < 4) return false;
+  const style = getComputedStyle(el);
+  if ((style.clip && style.clip !== "auto") || (style.clipPath && style.clipPath !== "none")) return false;
+  let clipped = false;
+  for (let node = el.parentElement; node && node !== document.body; node = node.parentElement) {
+    const overflow = getComputedStyle(node).overflowX + " " + getComputedStyle(node).overflow;
+    if (/hidden|auto|scroll|clip/.test(overflow)) { clipped = true; break; }
+  }
+  if (!clipped) return false;
+  el.focus && el.focus({ preventScroll: true });
+  el.click();
+  return true;
+}"""
 REPLACEMENT = """(old) => {
   const active = document.activeElement;
   if (!active || active === old || active === document.body) return null;
