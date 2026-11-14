@@ -87,6 +87,40 @@ def save(path: str, text: str) -> Path:
     return target
 
 
+def tabular(value) -> list | None:
+    if isinstance(value, list) and value and all(isinstance(row, dict) for row in value):
+        return value
+    if isinstance(value, dict):
+        lists = [item for item in value.values() if isinstance(item, list) and item and all(isinstance(row, dict) for row in item)]
+        if len(lists) == 1:
+            return lists[0]
+    return None
+
+
+def as_csv(rows: list, delimiter: str) -> str:
+    import csv
+
+    fields = []
+    for row in rows:
+        for key in row:
+            if key not in fields:
+                fields.append(key)
+    out = io.StringIO()
+    writer = csv.DictWriter(out, fieldnames=fields, delimiter=delimiter, extrasaction="ignore", lineterminator="\n")
+    writer.writeheader()
+    for row in rows:
+        writer.writerow({key: cell(row.get(key)) for key in fields})
+    return out.getvalue()
+
+
+def cell(value):
+    if value is None:
+        return ""
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, ensure_ascii=False)
+    return value
+
+
 def shown_rows(items: list) -> str:
     lines, used = [], 0
     for item in items:
@@ -138,6 +172,12 @@ def content(command: str, data: dict, path: Path) -> tuple[str, str]:
     value = data.get("value") if command == "script" else data.get("result")
     if isinstance(value, str):
         return value, f"text starting {json.dumps(value[:PREVIEW], ensure_ascii=False)}"
+    table = tabular(value) if path.suffix.lower() in (".csv", ".tsv") else None
+    if table is not None:
+        from ardia_cli import telemetry
+
+        telemetry.note_count("saved_as_csv", True)
+        return as_csv(table, "\t" if path.suffix.lower() == ".tsv" else ","), list_digest(table) + shown_rows(table)
     text = json.dumps(value, ensure_ascii=False, indent=2) + "\n"
     if isinstance(value, list):
         return text, list_digest(value) + shown_rows(value)

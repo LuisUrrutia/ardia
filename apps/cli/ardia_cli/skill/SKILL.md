@@ -71,9 +71,9 @@ EOF
 - `page.goto/click/fill/select/press/text(sel)/links(pat)/snapshot('-i')`, `read(urls)`, `browse('cmd', …)`.
   The script runs outside the page (no `document`): DOM code goes in `page.evaluate((x) => …, x)`. Recipes:
   `references/script.md`.
-- Save data with `--out <file>` on `script`, `read` or `eval`, beside your deliverables, and build files from it,
-  never by retyping output. Show what you saved (`--out` prints a digest; `head` the file for more): a value that
-  never appeared in output is unverified. `state` keeps its contents between scripts and through a timeout.
+- Save data with `--out <file>` on `script`, `read` or `eval` beside your deliverables (`.csv`: rows become a
+  table). Build files from saved data, never from rows typed into code or retyped output. `--out` prints what it
+  saved: a value that never appeared in output is unverified. `state` keeps its contents between scripts.
 - Click with `page.click(sel)` (i-th match: `` `li >> nth=${i}` ``), not `el.click()` in `page.evaluate`: that
   sends no pointer events; many controls miss it.
 
