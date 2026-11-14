@@ -55,6 +55,7 @@ const HOVER_SLOP = space.m;
 const EXPAND_MS = 220;
 const COLLAPSE_MS = 180;
 const COLLAPSE_DELAY_MS = 160;
+const UNPIN_MS = 150;
 const MARQUEE_PASSES_AT_REST = 1;
 
 export const SIDEBAR_PLAYER_HEIGHT = ROW_HEIGHT + 8;
@@ -124,24 +125,59 @@ function useExpansion(want: boolean, motion: PlayerMotion) {
   return { expanded, slot };
 }
 
-function PlayButton({ tabId, playing, size }: { tabId: string; playing: boolean; size: "m" | "l" }) {
-  return <Button variant="icon" icon={playing ? "pause.fill" : "play.fill"} size={size} tooltip={playing ? "Pause" : "Play"} onPress={() => mediaCommand(tabId, "toggle")} />;
+function usePinnedTrailing(slot: "row" | "expanded", pin: Animated.Value) {
+  const { hovered, hoverProps } = useHover();
+  const [pinned, setPinned] = useState(false);
+  useLayoutEffect(() => {
+    if (hovered && slot === "row" && !pinned) {
+      pin.setValue(1);
+      setPinned(true);
+    } else if (!hovered && pinned) {
+      setPinned(false);
+    }
+  }, [hovered, slot, pinned]);
+  useEffect(() => {
+    if (pinned) return;
+    const run = Animated.timing(pin, { toValue: 0, duration: UNPIN_MS, easing: curve.fade, useNativeDriver: true });
+    run.start();
+    return () => run.stop();
+  }, [pinned]);
+  return { pinned, trailingHoverProps: hoverProps };
 }
 
-function TimeLeft({ session }: { session: Session }) {
-  const media = useMediaTokens();
-  useTicker(true);
-  const left = formatTime((session.duration ?? 0) - positionOf(session));
+function TimeLeftRoom({ duration }: { duration: number }) {
   return (
-    <View accessibilityLabel={`${left} left`} style={{ height: BUTTON, minWidth: BUTTON, paddingHorizontal: space.xs, alignItems: "flex-end", justifyContent: "center" }}>
-      <Text size="caption" color={media.secondary} style={tabularNums}>
-        -{left}
+    <View style={{ height: BUTTON, minWidth: BUTTON, paddingHorizontal: space.xs, justifyContent: "center" }}>
+      <Text size="caption" style={tabularNums}>
+        -{formatTime(duration)}
       </Text>
     </View>
   );
 }
 
-const PlayerControls = memo(function PlayerControls({ tabId, live, reveal, onSeeking }: { tabId: string; live: boolean; reveal: Reveal; onSeeking: (seeking: boolean) => void }) {
+function PlayButton({ tabId, playing, size }: { tabId: string; playing: boolean; size: "m" | "l" }) {
+  return <Button variant="icon" icon={playing ? "pause.fill" : "play.fill"} size={size} tooltip={playing ? "Pause" : "Play"} onPress={() => mediaCommand(tabId, "toggle")} />;
+}
+
+function TimeLeft({ tabId, session }: { tabId: string; session: Session }) {
+  const media = useMediaTokens();
+  useTicker(true);
+  const left = formatTime((session.duration ?? 0) - positionOf(session));
+  return (
+    <Pressable
+      accessibilityLabel={`${left} left`}
+      accessibilityHint="Pause"
+      onPress={() => mediaCommand(tabId, "toggle")}
+      style={{ height: BUTTON, minWidth: BUTTON, paddingHorizontal: space.xs, alignItems: "flex-end", justifyContent: "center" }}
+    >
+      <Text size="caption" color={media.secondary} style={tabularNums}>
+        -{left}
+      </Text>
+    </Pressable>
+  );
+}
+
+const PlayerControls = memo(function PlayerControls({ tabId, live, reveal, pinned, onSeeking }: { tabId: string; live: boolean; reveal: Reveal; pinned: boolean; onSeeking: (seeking: boolean) => void }) {
   const media = useMediaTokens();
   const session = useSession(tabId);
   const mute = useMuteState(tabId);
@@ -163,11 +199,13 @@ const PlayerControls = memo(function PlayerControls({ tabId, live, reveal, onSee
           <PlayButton tabId={tabId} playing={playing} size="l" />
           <Button variant="icon" icon={icons.ahead} size="m" tooltip={icons.aheadTip} onPress={() => skipOrTrack(tabId, session, "ahead")} />
         </View>
-        {video ? (
-          <Button variant="icon" icon={pip ? "pip.exit" : "pip.enter"} size="m" tooltip={pip ? "Exit Picture in Picture" : "Picture in Picture"} onPress={togglePip} />
-        ) : (
-          <View style={{ width: BUTTON }} />
-        )}
+        <Animated.View pointerEvents={pinned ? "none" : "box-none"} style={{ opacity: reveal.unpinned }}>
+          {video ? (
+            <Button variant="icon" icon={pip ? "pip.exit" : "pip.enter"} size="m" tooltip={pip ? "Exit Picture in Picture" : "Picture in Picture"} onPress={togglePip} />
+          ) : (
+            <View style={{ width: BUTTON }} />
+          )}
+        </Animated.View>
       </Animated.View>
     </View>
   );
@@ -210,7 +248,11 @@ const PlayerRow = memo(function PlayerRow({ tabId, hovered, reveal }: { tabId: s
 });
 
 function useReveal(progress: Animated.Value) {
+  const [pin] = useState(() => new Animated.Value(0));
   const [reveal] = useState(() => ({
+    pin,
+    unpinned: pin.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
+    trailing: Animated.add(progress.interpolate({ inputRange: [0, 0.5], outputRange: [1, 0], extrapolate: "clamp" }), pin).interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: "clamp" }),
     mask: progress.interpolate({ inputRange: [0, 1], outputRange: [GROWTH, 0] }),
     unmask: progress.interpolate({ inputRange: [0, 1], outputRange: [-GROWTH, 0] }),
     titleDrop: progress.interpolate({ inputRange: [0, 1], outputRange: [TITLE_DROP, 0] }),
@@ -218,7 +260,6 @@ function useReveal(progress: Animated.Value) {
     seek: progress.interpolate({ inputRange: [0.7, 1], outputRange: [0, 1], extrapolate: "clamp" }),
     controls: progress.interpolate({ inputRange: [0.45, 1], outputRange: [0, 1], extrapolate: "clamp" }),
     controlsLift: progress.interpolate({ inputRange: [0, 1], outputRange: [-GROWTH + CONTROLS_LIFT, 0] }),
-    resting: progress.interpolate({ inputRange: [0, 0.5], outputRange: [1, 0], extrapolate: "clamp" }),
     closing: progress.interpolate({ inputRange: [0.5, 1], outputRange: [0, 1], extrapolate: "clamp" }),
   }));
   return reveal;
@@ -234,6 +275,8 @@ export function SidebarPlayer({ tabId, motion, docked }: { tabId: string; motion
   const want = hovered || seeking;
   const { expanded, slot } = useExpansion(want, motion);
   const reveal = useReveal(motion.progress);
+  const settled = expanded && slot === "expanded";
+  const { pinned, trailingHoverProps } = usePinnedTrailing(slot, reveal.pin);
   const glass = useGlass();
   if (!session || !shown) return null;
   const below = docked ? 0 : HOVER_SLOP;
@@ -257,23 +300,32 @@ export function SidebarPlayer({ tabId, motion, docked }: { tabId: string; motion
               )}
             </Animated.View>
             <Animated.View
-              pointerEvents={expanded ? "box-none" : "none"}
+              pointerEvents={settled ? "box-none" : "none"}
               style={{ position: "absolute", top: ROW_HEIGHT, left: 0, right: 0, transform: [{ translateY: reveal.controlsLift }] }}
             >
-              <PlayerControls tabId={tabId} live={expanded} reveal={reveal} onSeeking={setSeeking} />
+              <PlayerControls tabId={tabId} live={expanded} reveal={reveal} pinned={pinned} onSeeking={setSeeking} />
             </Animated.View>
             <View style={{ height: ROW_HEIGHT, flexDirection: "row", alignItems: "center", paddingLeft: ROW_INSET, paddingRight: TRAILING_INSET }}>
               <PlayerRow tabId={tabId} hovered={want} reveal={reveal} />
               <View style={{ minWidth: BUTTON, height: BUTTON, alignItems: "flex-end", justifyContent: "center" }}>
-                <Animated.View pointerEvents={expanded ? "none" : "box-none"} style={{ opacity: reveal.resting }}>
-                  {playing && session.duration ? <TimeLeft session={session} /> : <PlayButton tabId={tabId} playing={playing} size="m" />}
-                </Animated.View>
-                <Animated.View pointerEvents={expanded ? "box-none" : "none"} style={{ position: "absolute", top: 0, right: 0, opacity: reveal.closing }}>
+                <View pointerEvents="none" style={{ opacity: 0 }}>
+                  {playing && session.duration ? <TimeLeftRoom duration={session.duration} /> : <View style={{ width: BUTTON }} />}
+                </View>
+                <Animated.View pointerEvents={settled ? "box-none" : "none"} style={{ position: "absolute", top: 0, right: 0, opacity: reveal.closing }}>
                   <Button variant="icon" icon="xmark" size="m" tooltip="Close Player" onPress={() => dismissPlayer(tabId)} />
                 </Animated.View>
               </View>
             </View>
           </Animated.View>
+          <View
+            {...trailingHoverProps}
+            pointerEvents="box-none"
+            style={{ position: "absolute", right: 0, bottom: 0, height: ROW_HEIGHT, paddingRight: TRAILING_INSET, alignItems: "flex-end", justifyContent: "center" }}
+          >
+            <Animated.View pointerEvents={pinned || !settled ? "box-none" : "none"} style={{ opacity: reveal.trailing }}>
+              {playing && session.duration ? <TimeLeft tabId={tabId} session={session} /> : <PlayButton tabId={tabId} playing={playing} size="m" />}
+            </Animated.View>
+          </View>
         </View>
       </View>
     </View>
