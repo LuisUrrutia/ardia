@@ -135,6 +135,11 @@ export const appearanceRows = {
           keywords: ["border", "borderless", "edge to edge", "margin", "inset", "padding", "rounded corners", "corner radius", "frame", "gap", "full bleed", "arc", "compact"],
           shown: (s) => !s.borderlessMode,
         },
+        tabCornerRadius: {
+          title: "Tab corners",
+          description: "How round the corners of tabs are, in the sidebar and across the top. 10 pt is Dia's. A theme file's metrics.radius.row applies until you move this slider, and the arrow beside it goes back to following the theme.",
+          keywords: ["corner", "corners", "radius", "rounded", "round", "square", "tab shape", "tab corners", "rounded tabs", "pill"],
+        },
         pageFrameZeroInFullScreen: {
           title: "Zero in full screen",
           description: "In macOS full screen the page goes edge to edge with square corners, whatever the frame above is set to.",
