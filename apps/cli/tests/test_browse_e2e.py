@@ -748,6 +748,13 @@ class BrowseEndToEnd(unittest.TestCase):
         self.browse("open", self.url("results.html"), session=session)
         self.assertTrue(self.browse("read", session=session).stdout.rstrip().endswith('[scope: page says "1–20 of 340 results"; has a Next page link, pages up to 17]'))
 
+    def test_click_falls_back_to_a_dom_click_off_the_page(self):
+        session = "carousel"
+        self.browse("open", self.url("carousel.html"), "--show", session=session)
+        said = self.browse("click", "#s2", session=session).stdout
+        self.assertIn("got a DOM click instead of a pointer click", said)
+        self.assertEqual(self.report(session), {"clicked": ["s2"]})
+
     def test_read_reads_every_named_url_past_the_link_limit(self):
         urls = [self.url(f"picker.html?n={number}") for number in range(25)]
         pages = json.loads(self.browse("read", *urls, "--http", "--json", session="many-urls").stdout)["data"]["pages"]

@@ -489,7 +489,13 @@ async def wait_enabled(page, element, strict: bool = True):
 
 async def click(page, element, humanize: bool, count: int = 1, button: str = "left"):
     await wait_enabled(page, element, strict=False)
-    x, y, _ = await target_point(page, element, humanize)
+    try:
+        x, y, _ = await target_point(page, element, humanize)
+    except BrowseError as error:
+        if error.code != "outside_viewport" or count != 1 or button != "left":
+            raise
+        await dom_click(page, element, error)
+        return
     mouse = page.input.mouse
     which = mouse_button(button)
     async def press():
@@ -499,6 +505,19 @@ async def click(page, element, humanize: bool, count: int = 1, button: str = "le
             await mouse.click(x, y, button=which, click_count=number, humanize=False)
 
     await expect_input(page, element.frame, lambda: page.input.gesture("click", press), {"mousedown": count, "mouseup": count}, "The click", element)
+
+
+async def dom_click(page, element, error: BrowseError):
+    from ardia_cli import command_metrics
+
+    clicked = await page.call(DOM_CLICK, element, frame=element.frame)
+    if not clicked:
+        raise error
+    command_metrics.flag("dom_click_fallback", True)
+    point = (error.data or {}).get("point") or ["?", "?"]
+    page.state.click_note = (f"{element.label} sits outside the page (at {point[0]:.0f},{point[1]:.0f}) where scrolling can't reach, so it got a "
+                             "DOM click instead of a pointer click" if isinstance(point[0], (int, float)) else
+                             f"{element.label} sits outside the page, so it got a DOM click instead of a pointer click")
 
 
 async def hover(page, element, humanize: bool):
@@ -522,6 +541,7 @@ async def focus_field(page, element, info, humanize: bool, tolerate_detach: bool
 
 CENTER = "(el) => { const before = el.getBoundingClientRect(); el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' }); const after = el.getBoundingClientRect(); return Math.abs(after.top - before.top) + Math.abs(after.left - before.left) > 1; }"
 CONSENT_SETTLE = 0.5
+DOM_CLICK = "(el) => { if (!el.isConnected) return false; el.focus && el.focus({ preventScroll: true }); el.click(); return true; }"
 REPLACEMENT = """(old) => {
   const active = document.activeElement;
   if (!active || active === old || active === document.body) return null;
