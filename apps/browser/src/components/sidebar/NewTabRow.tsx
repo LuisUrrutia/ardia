@@ -10,6 +10,7 @@ import { openOverflowMenu, openSidebarMenu } from "../../state/sidebar/menus";
 import { toggleNewTabBar } from "../../state/omnibox/newTabBar";
 import { noteRowPressIn } from "../../state/sidebar/heldTabPress";
 import { modifiersOf } from "../../lib/keys";
+import { useShortcutHint, withShortcut } from "../../state/commands/commandShortcuts";
 import { useClipped, useShift, type ClipSource } from "./EntryMotion";
 import { ROW_GLYPH, TAB_ROW, useSidebarTokens } from "./tokens";
 import { SidebarRowLabel } from "./SidebarRow";
@@ -31,6 +32,7 @@ export const NewTabRow = memo(function NewTabRow({ windowId, shift = null, clip 
   const cleaned = useCleanedCount(windowId);
   const quiet = useQuietRows();
   const { hovered, hoverProps } = useHover();
+  const newTabHint = useShortcutHint("newTab");
   const pressMotion = usePressScaleMotion(true, buttonMotion.iconPressScale);
   const iconScale = pressMotion.scale ? { transform: [{ scale: pressMotion.scale }] } : undefined;
   const [moved, movedRef] = useShift(shift);
@@ -58,6 +60,7 @@ export const NewTabRow = memo(function NewTabRow({ windowId, shift = null, clip 
       </View>
       <ContextMenuArea style={{ flex: 1 }} onContextMenu={() => void openSidebarMenu(windowId)}>
         <Pressable
+          tooltip={`${withShortcut("New Tab", newTabHint)} — ⌥-click to open in Split View`}
           onPressIn={() => {
             pressMotion.onPressIn?.();
             noteRowPressIn(windowId);

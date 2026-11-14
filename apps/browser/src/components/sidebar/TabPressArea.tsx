@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Pressable, type StyleProp, type ViewStyle } from "react-native";
 import { hostOf } from "@ardia/core";
-import { useSettings, useTabLayout } from "../../state/browser/hooks";
+import { useSettings } from "../../state/browser/hooks";
 import { tabTitle } from "../../state/browser/model";
 import type { Tab } from "../../state/browser/types";
 import { middleClickTab } from "../../state/sidebar/clearTabs";
@@ -25,9 +25,7 @@ export function TabPressArea({
   tooltip?: string;
   children: ReactNode | ((state: { pressed: boolean }) => ReactNode);
 }) {
-  const cardOff = useSettings((s) => !s.showTabHoverMenu);
-  const inSidebar = useTabLayout(windowId) === "sidebar";
-  const plainTooltip = cardOff && inSidebar;
+  const plainTooltip = useSettings((s) => !s.showTabHoverMenu);
   return (
     <MouseArea onMiddleClick={() => middleClickTab(tab.id)} style={style}>
       <ContextMenuArea

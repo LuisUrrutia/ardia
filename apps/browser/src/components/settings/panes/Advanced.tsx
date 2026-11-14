@@ -5,7 +5,7 @@ import { describeCliInstall, installCliInBackground, useCli } from "../../../sta
 import { openUrls } from "../../../state/browser/actions";
 import { useSettings } from "../../../state/browser/hooks";
 import { updateSettings } from "../../../state/settings/actions";
-import { openInternalPage } from "../../../state/pages/urls";
+import { openChromeSettings, openInternalPage } from "../../../state/pages/urls";
 import type { BatterySaverWhen, Settings } from "../../../state/settings/settings";
 import { keepSiteActive, stopKeepingSiteActive, type MemorySaverMode } from "../../../state/tabs/memorySaver";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
@@ -130,6 +130,9 @@ export function AdvancedPane() {
                 : "Not available in this build: video that needs it, like Netflix or Disney+, won't play."
           }
         />
+        <Row anchor="advanced.chromeSettings">
+          <Button title="Open Chrome Settings" onPress={openChromeSettings} />
+        </Row>
       </Group>
 
       <SectionHeader title="Source and licenses" />
@@ -178,6 +181,7 @@ function CommandLineSection() {
             onPress={() => void installCliInBackground("settings")}
           />
         </Row>
+        <SettingToggle anchor="advanced.compactCliPill" />
       </Group>
     </>
   );

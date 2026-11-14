@@ -1386,7 +1386,19 @@ async def cmd_frame(ctx: Ctx, argv):
         described = await page.send("DOM.describeNode", {"backendNodeId": element.backend_id})
         frame_id = (described.get("node") or {}).get("frameId")
         if not frame_id or frame_id not in page.frames:
-            raise BrowseError(f"{target} isn't an iframe this tab can reach (ardia browse doesn't attach cross-process iframes)")
+            box = await actions.element_box(page, element) if frame_id else None
+            if box is None:
+                raise BrowseError(f"{target} isn't an iframe this tab can reach (ardia browse doesn't attach cross-process iframes)")
+            from ardia_cli import command_metrics
+
+            command_metrics.flag("frame_cross_process_box", True)
+            left, top, right, bottom = (round(value) for value in box)
+            raise BrowseError(
+                f"{target} is a cross-process iframe, which ardia browse can't enter, but the mouse reaches it: it sits at "
+                f"{left},{top} to {right},{bottom} in the viewport. Click a point inside it with `mouse move <x> <y>`, "
+                "`mouse down` and `mouse up` (in one batch), then `screenshot` to see what changed",
+                data={"box": [left, top, right, bottom]}, code="cross_process_frame",
+            )
     ctx.state.frames[page.target_id] = frame_id
     return Result({"frame": frame_id, "url": page.frames[frame_id]["url"]})
 
@@ -2053,5 +2065,5 @@ SKIPPED = {
     "swipe": "iOS isn't supported",
     "tap": "iOS isn't supported",
     "device": "iOS isn't supported",
-    "skills": "use `ardia skills install`",
+    "skills": "use `ardia --skill` (or `ardia skills get --full`) to print the skill, `ardia skills install` to copy it",
 }

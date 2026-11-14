@@ -380,7 +380,12 @@ async def scroll_into_view(page, element, humanize: bool):
     r = await rect(page, element)
     vp = await viewport(page)
     if _outside(r, vp):
-        await page.send("DOM.scrollIntoViewIfNeeded", {"backendNodeId": element.backend_id})
+        try:
+            await page.send("DOM.scrollIntoViewIfNeeded", {"backendNodeId": element.backend_id})
+        except CdpError as error:
+            if "layout object" not in error.cdp_message:
+                raise
+            raise BrowseError(f"Element {element.label} has no visible box (hidden or zero-size)", code="not_visible") from None
 
 
 async def target_point(page, element, humanize: bool, check_cover: bool = True):
