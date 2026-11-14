@@ -63,7 +63,8 @@ function DefaultBrowserQuestion() {
       if (dock && !system.inDock) await addToDock();
     } finally {
       setBusy(false);
-      confirmAnswer("default", {}, picked);
+      const { step, sub } = useOnboarding.getState();
+      if (step === "home" && sub === 0) confirmAnswer("default", {}, picked);
     }
   };
 

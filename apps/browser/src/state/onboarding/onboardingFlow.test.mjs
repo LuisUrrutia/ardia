@@ -20,6 +20,7 @@ import {
   useOnboarding,
 } from "./onboarding.ts";
 import { adoptSetupChoices } from "./setupCodeChoices.ts";
+import { readSaved } from "./onboardingDocument.ts";
 
 const S = () => useBrowser.getState();
 const O = () => useOnboarding.getState();
@@ -76,6 +77,7 @@ test("after a setup code, every step asks its questions from the settings the co
   startOnboarding(id, "source");
   chooseSource("chrome");
   adoptSetupChoices({ settings: { searchEngine: "kagi" }, preset: "dia" }, ["From a setup code"]);
+  assert.equal(readSaved().source, null, "a relaunch resumes without the unconfirmed browser's preset");
   assert.equal(questionsFor("layout").length > 0, true);
   assert.deepEqual(questionsFor("searchPrivacy").map((q) => q.id), ["engine", "typed", "crash"]);
   S().updateSettings({ searchEngine: "kagi" });
