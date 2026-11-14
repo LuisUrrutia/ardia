@@ -137,6 +137,7 @@
   const session = navigator.mediaSession;
   const actions = new Map();
   let positionState = null;
+  let timeline = null;
   const listening = new WeakSet();
   const LISTEN_TRIES = 20;
   const playingUnmuted = (m) => !m.paused && !m.ended && !m.muted && m.volume > 0;
@@ -218,6 +219,12 @@
     send("nowPlaying", state && { ...state, timestamp: Date.now() });
   }, 100);
   let blockAutoplay = false;
+  let usedHere = false;
+  const noteUse = (e) => {
+    if (e.isTrusted && !(e.type === "keydown" && (e.key === "Escape" || e.metaKey))) usedHere = true;
+  };
+  for (const type of ["pointerdown", "keydown"]) window.addEventListener(type, noteUse, true);
+  const askedToPlay = () => usedHere || (!isTop && !!(navigator.userActivation && navigator.userActivation.isActive));
   let pipTrace = false;
   let pipHandlerSet = null;
   const playingMedia = new Set();
@@ -226,7 +233,7 @@
     if (!(m instanceof HTMLMediaElement)) return;
     if (e.type === "play" || e.type === "playing") playingMedia.add(m);
     else if (e.type === "pause" || e.type === "ended" || e.type === "emptied") playingMedia.delete(m);
-    if (blockAutoplay && e.type === "play" && !(navigator.userActivation && navigator.userActivation.hasBeenActive)) {
+    if (blockAutoplay && e.type === "play" && !askedToPlay()) {
       m.pause();
       return;
     }
@@ -263,27 +270,30 @@
       for (const e of mediaEvents) self.addEventListener(e, onMediaEvent);
       for (const watch of detachedMediaWatchers) guard(watch)(self);
     }
+    return media;
   };
+  const autoplayRefusal = () => new DOMException("play() failed because the user didn't interact with the document first.", "NotAllowedError");
   HTMLMediaElement.prototype.play = asNative(play, (target, self, args) => {
-    trackDetachedMedia(self);
+    if (trackDetachedMedia(self) && blockAutoplay && !askedToPlay()) return Promise.reject(autoplayRefusal());
     return apply(target, self, args);
   });
 
   const proto = session && Object.getPrototypeOf(session);
   if (proto) {
-    const wrapSetter = (name) => {
+    const wrapSetter = (name, changed) => {
       const d = Object.getOwnPropertyDescriptor(proto, name);
       if (!d || !d.set) return;
       Object.defineProperty(proto, name, {
         ...d,
         set(value) {
           d.set.call(this, value);
+          changed?.();
           reportNowPlaying();
         },
       });
     };
     wrapSetter("metadata");
-    wrapSetter("playbackState");
+    wrapSetter("playbackState", () => timeline && restartTimelineClock(clockPosition(timeline.playbackRate, timeline.clock, performance.now())));
     const setActionHandler = proto.setActionHandler;
     proto.setActionHandler = function (action, handler) {
       if (action === "enterpictureinpicture") {
@@ -298,21 +308,63 @@
     };
     const setPositionState = proto.setPositionState;
     proto.setPositionState = function (state) {
+      const result = setPositionState.apply(this, arguments);
       positionState = state || null;
+      timeline = typeof state?.duration === "number" ? { position: state.position ?? 0, duration: state.duration, playbackRate: state.playbackRate ?? 1, mediaTimes: new WeakMap(reachableMedia().map((m) => [m, m.currentTime])) } : null;
+      if (timeline) restartTimelineClock(timeline.position);
       reportNowPlaying();
-      return setPositionState.apply(this, arguments);
+      return result;
     };
   }
   const playableMedia = (all) => all.find((m) => m.currentSrc || m.srcObject || m.src || m.querySelector("source[src]")) || null;
-  handlers.media = ({ action, seconds }) => {
-    const el = pickMedia() || playableMedia([...document.querySelectorAll("video,audio")]);
+  const pictureInPictureMedia = (root) => {
+    let el = root.pictureInPictureElement || null;
+    while (el?.shadowRoot?.pictureInPictureElement) el = el.shadowRoot.pictureInPictureElement;
+    return el;
+  };
+  const mediaCommandTarget = (action, inPictureInPicture, pick) => {
+    if (action !== "seekPictureInPictureBy") return { action, el: pick() };
+    if (!inPictureInPicture) return null;
+    return { action: "seekBy", el: typeof inPictureInPicture.currentTime === "number" ? inPictureInPicture : null };
+  };
+  const reachableMedia = () => [...new Set([...document.querySelectorAll("video,audio"), active, pictureInPictureMedia(document)])].filter((m) => typeof m?.currentTime === "number");
+  const clockPosition = (rate, clock, now) => {
+    return clock.position + (clock.advancing ? ((now - clock.at) / 1000) * rate : 0);
+  };
+  const timelineNow = (reported, mediaAdvance, now) => {
+    const position = mediaAdvance == null ? clockPosition(reported.playbackRate, reported.clock, now) : reported.position + mediaAdvance;
+    return { position: Math.max(0, Math.min(reported.duration, position)), duration: reported.duration };
+  };
+  const restartTimelineClock = (position) => {
+    timeline.clock = { position, at: performance.now(), advancing: session.playbackState !== "paused" };
+  };
+  const seekByCall = (seconds, el, registered, timeline) => {
+    if (registered(seconds >= 0 ? "seekforward" : "seekbackward")) return seconds >= 0 ? ["seekforward", { seekOffset: seconds }] : ["seekbackward", { seekOffset: -seconds }];
+    const within = (position, duration) => ({ seekTime: Math.max(0, Math.min(duration || Infinity, position + seconds)) });
+    if (registered("seekto")) {
+      const at = timeline || (el && { position: el.currentTime, duration: el.duration });
+      return at ? ["seekto", within(at.position, at.duration)] : null;
+    }
+    return el ? ["currentTime", within(el.currentTime, el.duration)] : null;
+  };
+  handlers.media = ({ action: asked, seconds }) => {
+    const target = mediaCommandTarget(asked, pictureInPictureMedia(document), () => pickMedia() || playableMedia([...document.querySelectorAll("video,audio")]));
+    if (!target) return;
+    const { action, el } = target;
     const call = (name, details) => {
       const h = actions.get(name);
       if (!h) return false;
       h({ action: name, ...details });
       return true;
     };
+    const askToSeek = (name, details, landsAt) => {
+      const reported = timeline;
+      if (!call(name, details)) return false;
+      if (timeline && timeline === reported) restartTimelineClock(landsAt(timeline));
+      return true;
+    };
     const playing = session?.playbackState === "playing" || (el && !el.paused);
+    if (action === "play" || action === "toggle") usedHere = true;
     switch (action) {
       case "play":
         call("play") || el?.play();
@@ -331,12 +383,15 @@
         call("previoustrack");
         break;
       case "seekBy": {
-        const handled = seconds >= 0 ? call("seekforward", { seekOffset: seconds }) : call("seekbackward", { seekOffset: -seconds });
-        if (!handled && el) el.currentTime = Math.max(0, Math.min(el.duration || Infinity, el.currentTime + seconds));
+        const mediaAdvance = el && timeline?.mediaTimes.has(el) ? el.currentTime - timeline.mediaTimes.get(el) : null;
+        const [how, details] = seekByCall(seconds, el, (name) => actions.has(name), timeline && timelineNow(timeline, mediaAdvance, performance.now())) || [];
+        if (how === "currentTime") el.currentTime = details.seekTime;
+        else if (how === "seekto") askToSeek(how, details, () => details.seekTime);
+        else if (how) askToSeek(how, details, (reported) => clockPosition(reported.playbackRate, reported.clock, performance.now()) + seconds);
         break;
       }
       case "seekTo":
-        if (!call("seekto", { seekTime: seconds }) && el) el.currentTime = seconds;
+        if (!askToSeek("seekto", { seekTime: seconds }, () => seconds) && el) el.currentTime = seconds;
         break;
       case "stop":
         call("stop") || el?.pause();
@@ -370,8 +425,10 @@
     const r = eyeField.getBoundingClientRect();
     const cs = getComputedStyle(eyeField);
     const size = Math.min(24, Math.max(18, r.height - 8));
-    const inset = Math.max(4, Math.min(10, parseFloat(cs.paddingRight) || 4));
-    eyeHost.style.left = r.right - (parseFloat(cs.borderRightWidth) || 0) - inset - size + "px";
+    const rtl = cs.direction === "rtl";
+    const inset = Math.max(4, Math.min(10, parseFloat(rtl ? cs.paddingLeft : cs.paddingRight) || 4));
+    const border = parseFloat(rtl ? cs.borderLeftWidth : cs.borderRightWidth) || 0;
+    eyeHost.style.left = (rtl ? r.left + border + inset : r.right - border - inset - size) + "px";
     eyeHost.style.top = r.top + (r.height - size) / 2 + "px";
     eyeButton.style.width = eyeButton.style.height = size + "px";
     eyeButton.style.color = cs.color;
@@ -1237,6 +1294,7 @@
         const t = tracks.get(self);
         if (!t) return apply(target, self, args);
         trackDetachedMedia(self);
+        if (t.paused && blockAutoplay && !askedToPlay()) return Promise.reject(autoplayRefusal());
         if (t.failed) return Promise.reject(new DOMException("The element has no supported sources.", "NotSupportedError"));
         if (t.detached) {
           attach(self, t);
@@ -1633,7 +1691,7 @@
     if (pipTrace && pipHandlerSet !== null)
       send("pipTrace", { event: "setActionHandler", action: "enterpictureinpicture", set: pipHandlerSet });
     if (blockAutoplay)
-      pauseUnasked([...playingMedia, ...document.querySelectorAll("video, audio")], !!(navigator.userActivation && navigator.userActivation.hasBeenActive));
+      pauseUnasked([...playingMedia, ...document.querySelectorAll("video, audio")], askedToPlay());
     if (config.displayMediaPicker) installDisplayMedia();
     else restoreDisplayMedia();
     if (config.fieldTiming) setFieldTiming(true);
@@ -2024,6 +2082,10 @@
 
   const scrollDirection = () => {
     const DOWN = 24, UP = 12, MIN_RANGE = 120, SETTLE = 300, GESTURE = 300;
+    const paged = (snap, vertical) => {
+      const [axis, strictness] = snap.split(" ");
+      return strictness === "mandatory" && (axis === "y" || axis === "both" || axis === (vertical ? "inline" : "block"));
+    };
     let anchor = 0, last = 0, lastAt = -1e9, settleUntil = -1e9, budget = 0, height = 0, sent = null, gestureSent = false, heading = 0;
     const resized = (viewport, now) => {
       if (now >= settleUntil) budget = 0;
@@ -2048,7 +2110,7 @@
       undirected() {
         heading = 0;
       },
-      scrolled(y, range, viewport, now, user) {
+      scrolled(y, range, viewport, now, user, snap = "", vertical = false) {
         resized(viewport, now);
         if (now - lastAt > GESTURE) {
           gestureSent = false;
@@ -2066,7 +2128,7 @@
         if (y <= 2) state = "top";
         else if (!user || moved * heading < 0) anchor = y;
         else if (y - anchor >= DOWN) {
-          if (range >= MIN_RANGE) state = "down";
+          if (range >= MIN_RANGE && !paged(snap, vertical)) state = "down";
           else anchor = y;
         } else if (anchor - y >= UP) state = "up";
         else if (sent === "down" ? gestureSent && y > anchor : y < anchor) anchor = y;
@@ -2108,7 +2170,8 @@
     if (!el || !doc || (el !== doc && (el.clientHeight < innerHeight * 0.5 || el.clientWidth < innerWidth * 0.5))) return;
     if (el !== scroller) direction.rebase((scroller = el).scrollTop);
     const now = performance.now();
-    const state = direction.scrolled(el.scrollTop, el.scrollHeight - el.clientHeight, innerHeight, now, now - inputAt < 1000);
+    const style = getComputedStyle(el === doc ? document.documentElement : el);
+    const state = direction.scrolled(el.scrollTop, el.scrollHeight - el.clientHeight, innerHeight, now, now - inputAt < 1000, style.scrollSnapType, /^(vertical|sideways)/.test(style.writingMode));
     if (state) send("scroll", { state });
   });
   addEventListener(

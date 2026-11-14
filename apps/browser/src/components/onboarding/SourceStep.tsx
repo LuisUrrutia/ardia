@@ -59,6 +59,8 @@ function detect(): Tile[] {
 export function SourceStep() {
   const colors = useOnboardingColors();
   const source = useOnboarding((s) => s.source);
+  const redo = useOnboarding((s) => s.redo);
+  const redoSource = useOnboarding((s) => s.redoSource);
   const [tiles, setTiles] = useState<Tile[]>(detect);
   const [importing, setImporting] = useState<BrowserSourceId | null>(null);
   const [pastingCode, setPastingCode] = useState(false);
@@ -80,6 +82,11 @@ export function SourceStep() {
     setImporting(chosen.id);
   };
 
+  const skip = () => {
+    chooseSource(redo ? redoSource : null);
+    skipStep();
+  };
+
   const done = () => confirmAnswer("source", sourcePatch(), chosen ? [`Coming from ${chosen.name}`] : source === "fresh" ? ["Starting fresh"] : []);
 
   if (pastingCode) return <SetupCodeStep onBack={() => setPastingCode(false)} />;
@@ -93,7 +100,7 @@ export function SourceStep() {
           <StepActions
             disabled={!source}
             onContinue={done}
-            onSkip={() => skipStep()}
+            onSkip={skip}
           />
           {isWebDemo ? null : <SetupCodeLink onPress={() => setPastingCode(true)} />}
         </>

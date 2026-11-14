@@ -131,6 +131,7 @@ export function startDevHarness() {
       return require("../settings/panes/SyncSheets");
     },
     get menus(): typeof import("../../state/sidebar/menus") &
+      typeof import("../../state/sidebar/liveMenus") &
       typeof import("../../state/site/reloadMenu") &
       typeof import("../profiles/profileMenu") &
       typeof import("../../state/bookmarks/bookmarkMenus") &
@@ -141,6 +142,7 @@ export function startDevHarness() {
       return {
         useBookmarkDialog: require("../../state/bookmarks/actions").useBookmarkDialog,
         ...require("../../state/sidebar/menus"),
+        ...require("../../state/sidebar/liveMenus"),
         ...require("../../state/site/reloadMenu"),
         ...require("../profiles/profileMenu"),
         ...require("../../state/bookmarks/bookmarkMenus"),
@@ -166,6 +168,9 @@ export function startDevHarness() {
     },
     get automation(): typeof import("../../state/automation/approvals") & typeof import("../../state/automation/hookRules") & typeof import("../../state/automation/hookPolicy") & typeof import("../../state/automation/decideSocket") {
       return { ...require("../../state/automation/approvals"), ...require("../../state/automation/hookRules"), ...require("../../state/automation/hookPolicy"), ...require("../../state/automation/decideSocket") };
+    },
+    get airTraffic(): typeof import("../../state/airTraffic/store") & typeof import("../../state/airTraffic/preview") & typeof import("../../state/littleArdia/actions") {
+      return { ...require("../../state/airTraffic/store"), ...require("../../state/airTraffic/preview"), ...require("../../state/littleArdia/actions") };
     },
   };
   (globalThis as { ac?: typeof ac }).ac = ac;
