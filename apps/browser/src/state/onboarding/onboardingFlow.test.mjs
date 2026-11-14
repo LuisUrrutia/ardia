@@ -19,6 +19,7 @@ import {
   startOnboarding,
   useOnboarding,
 } from "./onboarding.ts";
+import { adoptSetupChoices } from "./setupCodeChoices.ts";
 
 const S = () => useBrowser.getState();
 const O = () => useOnboarding.getState();
@@ -55,6 +56,30 @@ test("Continue goes through the steps in order and Skip moves past the rest of a
     skipStep();
   }
   assert.equal(O().step, "outro");
+  settle();
+});
+
+test("skipping the source after picking a browser leaves its preset out, so every question is asked", () => {
+  const id = S().createWindow();
+  startOnboarding(id, "source");
+  chooseSource("chrome");
+  chooseSource(null);
+  skipStep();
+  assert.equal(O().step, "layout");
+  assert.equal(questionsFor("tabs").length, QUESTIONS.tabs.length);
+  assert.deepEqual(questionsFor("searchPrivacy").map((q) => q.id), ["engine", "typed", "crash"]);
+  settle();
+});
+
+test("after a setup code, every step asks its questions from the settings the code applied", () => {
+  const id = S().createWindow();
+  startOnboarding(id, "source");
+  chooseSource("chrome");
+  adoptSetupChoices({ settings: { searchEngine: "kagi" }, preset: "dia" }, ["From a setup code"]);
+  assert.equal(questionsFor("layout").length > 0, true);
+  assert.deepEqual(questionsFor("searchPrivacy").map((q) => q.id), ["engine", "typed", "crash"]);
+  S().updateSettings({ searchEngine: "kagi" });
+  assert.equal(resolveDraft(["searchEngine"], O().draft, draftPreset(O()), S().settings, []).searchEngine, "kagi");
   settle();
 });
 

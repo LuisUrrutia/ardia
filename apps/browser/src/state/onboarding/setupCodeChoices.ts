@@ -13,6 +13,7 @@ export function adoptSetupChoices(choices: SetupChoices, lines: string[]) {
     if (choices.color) delete baseline.color;
     return {
       preset: choices.preset ?? o.preset,
+      prefill: "current" as const,
       draft,
       baseline,
       extras: choices.pins ? { ...o.extras, pins: choices.pins } : o.extras,
