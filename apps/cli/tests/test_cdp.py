@@ -65,7 +65,40 @@ def run(coroutine):
     return asyncio.run(asyncio.wait_for(coroutine, 30))
 
 
+async def deaf_peer():
+    import base64
+    import hashlib
+
+    async def handle(reader, writer):
+        request = await reader.readuntil(b"\r\n\r\n")
+        key = next(line.split(b":", 1)[1].strip() for line in request.split(b"\r\n") if line.lower().startswith(b"sec-websocket-key"))
+        accept = base64.b64encode(hashlib.sha1(key + wsclient.ACCEPT_GUID).digest())
+        writer.write(b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: " + accept + b"\r\n\r\n")
+        await writer.drain()
+        await asyncio.sleep(60)
+
+    server = await asyncio.start_server(handle, "127.0.0.1", 0)
+    return server, f"ws://127.0.0.1:{server.sockets[0].getsockname()[1]}/devtools/browser/x"
+
+
 class ConnectionTest(unittest.TestCase):
+    def test_a_peer_that_stops_reading_times_commands_out_instead_of_hanging(self):
+        async def scenario():
+            server, url = await deaf_peer()
+            connection = cdp.Connection(url)
+            await connection.open(5)
+            filler = "z" * (8 << 20)
+            started = asyncio.get_running_loop().time()
+            with self.assertRaises(cdp.CommandTimeout):
+                await connection.execute_command({"method": "Test.echo", "params": {"fill": filler}}, timeout=0.5)
+            with self.assertRaises(cdp.CommandTimeout):
+                await connection.execute_command({"method": "Test.echo"}, timeout=0.3)
+            self.assertLess(asyncio.get_running_loop().time() - started, 3)
+            connection.socket.writer.transport.abort()
+            server.close()
+
+        run(scenario())
+
     def test_commands_events_frames_and_errors(self):
         async def scenario():
             async with Peer(echo_results) as peer:

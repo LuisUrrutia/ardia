@@ -108,9 +108,11 @@ class Connection:
         ident = next(self.ids)
         future = asyncio.get_running_loop().create_future()
         self.pending[ident] = future
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + timeout
         try:
-            await self.socket.send(json.dumps({**command, "id": ident}))
-            reply = await asyncio.wait_for(future, timeout)
+            await asyncio.wait_for(self.socket.send(json.dumps({**command, "id": ident})), timeout)
+            reply = await asyncio.wait_for(future, max(0.0, deadline - loop.time()))
         except asyncio.TimeoutError:
             raise CommandTimeout(method, timeout) from None
         except wsclient.Closed:

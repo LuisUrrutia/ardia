@@ -12,6 +12,7 @@ CONTINUATION, TEXT, BINARY, CLOSE, PING, PONG = 0x0, 0x1, 0x2, 0x8, 0x9, 0xA
 CONTROL = frozenset({CLOSE, PING, PONG})
 READ_BUFFER = 4 * 1024 * 1024
 CLOSE_WAIT = 2.0
+SEND_DRAIN_LIMIT = 30.0
 
 
 class HandshakeError(ConnectionError):
@@ -87,7 +88,9 @@ class Socket:
             opcode, payload = BINARY, bytes(message)
         try:
             self._write(opcode, payload)
-            await self._drain()
+            await asyncio.wait_for(self._drain(), SEND_DRAIN_LIMIT)
+        except asyncio.TimeoutError:
+            raise self._lost(TimeoutError(f"the browser read nothing for {SEND_DRAIN_LIMIT:g}s")) from None
         except (ConnectionError, OSError) as error:
             raise self._lost(error) from None
 
@@ -151,7 +154,6 @@ class Socket:
         if opcode == PING:
             if not self.close_sent:
                 self._write(PONG, payload)
-                await self._drain()
             return
         if opcode == PONG:
             return
