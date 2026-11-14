@@ -660,6 +660,18 @@ class BrowseEndToEnd(unittest.TestCase):
         self.assertIn("so the click went to the label", said)
         self.assertEqual(json.loads(self.browse("get", "text", "#report", session=session).stdout), {"hvac": False, "plumbing": True})
 
+    def test_a_cross_process_frame_gives_its_box_and_the_mouse_clicks_inside_it(self):
+        session = "oopif"
+        self.browse("open", self.url("oopif.html"), "--show", session=session)
+        time.sleep(1)
+        refused = self.browse("frame", "#child", session=session, check=False)
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn("is a cross-process iframe", refused.stderr)
+        self.assertIn("it sits at 40,60 to 340,140", refused.stderr)
+        self.browse("batch", session=session, stdin="mouse move 190 100\nmouse down\nmouse up\n")
+        time.sleep(0.5)
+        self.assertEqual(json.loads(self.browse("get", "text", "#report", session=session).stdout), {"clicked": ["box"]})
+
     def test_open_returns_a_page_whose_load_never_ends_with_a_note(self):
         import socket
 
