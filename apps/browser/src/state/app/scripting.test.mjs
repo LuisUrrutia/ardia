@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 await import("../../test-native/index.ts");
 const { useBrowser } = await import("../browser/store.ts");
-const { scriptChange, scriptState } = await import("./scripting.ts");
+const { scriptChange, scriptState, scriptStatePublisher } = await import("./scripting.ts");
 
 const S = () => useBrowser.getState();
 const untitled = (state) => JSON.stringify({ ...state, windows: state.windows.map((w) => ({ ...w, title: "", tabs: w.tabs.map((t) => ({ ...t, title: "" })) })) });
@@ -43,4 +43,31 @@ test("a change scripts can see is pushed: at once when a tab, window or profile 
     seen[change ?? "none"]++;
   }
   assert.ok(seen.structure > 50 && seen.titles > 20 && seen.none > 50, JSON.stringify(seen));
+});
+
+test("a push of state that is already on its way waits for it to arrive, so a reply never overtakes it", async () => {
+  let state = { windows: [], profiles: [{ id: "default", name: "One" }] };
+  const arrived = [];
+  const arrivals = [];
+  const push = scriptStatePublisher(() => state, (sent) => new Promise((resolve, reject) => arrivals.push({ resolve: () => (arrived.push(sent), resolve()), reject })));
+  const settled = (promise) => { let done = false; promise.then(() => (done = true), () => (done = true)); return new Promise((r) => setImmediate(() => r(done))); };
+  const timer = push();
+  const reply = push();
+  assert.equal(arrivals.length, 1, "the same state is sent once");
+  assert.equal(await settled(reply), false, "the reply went ahead while the state it relies on was still in flight");
+  arrivals[0].resolve();
+  await reply;
+  await timer;
+  assert.deepEqual(arrived, [state]);
+  assert.equal(await settled(push()), true, "nothing in flight: nothing to wait for");
+
+  state = { windows: [], profiles: [{ id: "default", name: "Two" }] };
+  const failed = push();
+  arrivals[1].reject(new Error("the module is gone"));
+  await failed;
+  const again = push();
+  assert.equal(arrivals.length, 3, "a state that never arrived is sent again");
+  arrivals[2].resolve();
+  await again;
+  assert.deepEqual(arrived.at(-1), state);
 });

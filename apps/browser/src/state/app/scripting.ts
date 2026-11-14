@@ -49,15 +49,27 @@ export function scriptState(s: BrowserState): ScriptState {
     profiles: s.profileOrder.map((id) => ({ id, name: s.profiles[id]!.name })) };
 }
 
-export function startScripting() {
+export function scriptStatePublisher(read: () => ScriptState, publish: (state: ScriptState) => Promise<unknown>): () => Promise<void> {
   let lastJson = "";
-  const push = () => {
-    const state = scriptState(useBrowser.getState());
+  let arriving: Promise<void> = Promise.resolve();
+  return () => {
+    const state = read();
     const json = JSON.stringify(state);
-    if (json === lastJson) return Promise.resolve();
+    if (json === lastJson) return arriving;
     lastJson = json;
-    return setScriptState(state);
+    const sent = new Promise<unknown>((resolve) => resolve(publish(state))).then(
+      () => {},
+      () => {
+        if (lastJson === json) lastJson = "";
+      },
+    );
+    arriving = sent;
+    return sent;
   };
+}
+
+export function startScripting() {
+  const push = scriptStatePublisher(() => scriptState(useBrowser.getState()), setScriptState);
   let timer: ReturnType<typeof setTimeout> | undefined;
   let dueAt = Infinity;
   let scriptedAt = -Infinity;
