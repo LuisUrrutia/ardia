@@ -151,6 +151,11 @@ export const appearanceRows = {
           description: "The soft light around the selected tab in the sidebar. Full is Dia's.",
           keywords: ["glow", "shadow", "halo", "highlight", "selected tab", "active tab"],
         },
+        selectedTopApp: {
+          title: "Selected Top App",
+          description: "How the selected pinned tile shows. Ring is Dia's: a coloured ring around a filled tile. Fill only drops the ring; Outline only keeps the ring around a clear tile.",
+          keywords: ["ring", "outline", "outlined", "border", "fill", "filled", "top apps", "pinned tile", "pinned tab", "selected tile", "active tile", "white ring", "classic"],
+        },
       },
     },
     {

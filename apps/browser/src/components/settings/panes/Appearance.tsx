@@ -255,6 +255,7 @@ function SidebarTextPicker() {
 
 function SelectedTabGlowPicker() {
   const glow = useSettings((s) => s.selectedTabGlow);
+  const topApp = useSettings((s) => s.selectedTopApp);
   return (
     <>
       <SectionHeader title="Selected Tab" />
@@ -268,6 +269,18 @@ function SelectedTabGlowPicker() {
               { value: "off", title: "Off" },
             ]}
             onChange={(v) => updateSettings({ selectedTabGlow: v })}
+            minWidth={120}
+          />
+        </Row>
+        <Row anchor="appearance.selectedTopApp">
+          <PopUp
+            value={topApp}
+            options={[
+              { value: "ring", title: "Ring" },
+              { value: "fill", title: "Fill only" },
+              { value: "outline", title: "Outline only" },
+            ]}
+            onChange={(v) => updateSettings({ selectedTopApp: v })}
             minWidth={120}
           />
         </Row>

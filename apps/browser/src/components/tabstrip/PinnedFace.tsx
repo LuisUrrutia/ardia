@@ -7,6 +7,7 @@ import { TileUnread } from "../unread/UnreadBadge";
 import { DockSelection, Text, withAlpha } from "../ui";
 import { GlassFill, useGlass } from "../ui/Glass";
 import { hex, useTheme } from "../ui/theme";
+import { useSelectedTopApp } from "../../state/app/theme";
 import { useMinimalism } from "../../state/windows/layout";
 import { tileLetterOf } from "../../lib/tileLetter";
 import { useSidebarTokens } from "../sidebar/tokens";
@@ -18,6 +19,7 @@ export function PinnedFace({ tabId, active, hovered, pressed, frame = "cell" }: 
   const tileTheme = useTileTheme(tab?.url ?? "", tab?.favicon, tab?.customIcon, tab?.profileId ?? "");
   const glass = useGlass();
   const badges = useSettings((st) => st.showTopAppBadges);
+  const topApp = useSelectedTopApp();
   const minimal = useMinimalism();
   const quiet = useSidebarTokens();
   if (!tab) return null;
@@ -30,7 +32,7 @@ export function PinnedFace({ tabId, active, hovered, pressed, frame = "cell" }: 
     <View style={{ width: PINNED_CELL - (compact ? PINNED_FACE_INSET * 2 : 0), height: ITEM_HEIGHT - 1 - (compact ? PINNED_FACE_INSET * 2 : 0), alignItems: "center", justifyContent: "center" }}>
       {glassRing ? (
         <View style={face}>
-          <GlassFill radius={pinnedFaceRadius()} state={pressed ? "pressed" : "active"} />
+          <GlassFill radius={pinnedFaceRadius()} state={pressed ? "pressed" : topApp === "outline" ? (hovered ? "lit" : "rest") : "active"} />
           <DockSelection
             image={tileTheme?.image}
             emoji={tileTheme?.emoji}
@@ -38,7 +40,8 @@ export function PinnedFace({ tabId, active, hovered, pressed, frame = "cell" }: 
             fill={tileTheme?.theme.kind === "template" ? tileTheme.theme.fill : undefined}
             stroke={tileTheme?.theme.kind === "template" ? tileTheme.theme.stroke : undefined}
             cornerRadius={pinnedFaceRadius()}
-            strokeWidth={PINNED_RING_STROKE}
+            strokeWidth={topApp === "fill" ? 0 : PINNED_RING_STROKE}
+            outline={topApp === "outline"}
             dark={theme.dark}
             glass
             colorRing
@@ -54,7 +57,9 @@ export function PinnedFace({ tabId, active, hovered, pressed, frame = "cell" }: 
           style={{
             ...face,
             borderRadius: pinnedFaceRadius(),
-            backgroundColor: pressed ? theme.tabPressed : active ? theme.pinnedSelectedFill : theme.tabHover,
+            borderWidth: active && topApp === "outline" ? PINNED_RING_STROKE : 0,
+            borderColor: theme.pinnedSelectedFill,
+            backgroundColor: pressed ? theme.tabPressed : active && topApp !== "outline" ? theme.pinnedSelectedFill : hovered ? theme.tabHover : undefined,
           }}
         />
       )}
