@@ -10,21 +10,27 @@ const shell = (title, accent, style, body) => `<!doctype html><html><head><meta 
 <style>*{box-sizing:border-box}body{margin:0;font:15px system-ui,-apple-system,sans-serif;background:#f6f4ef;color:#222}header{height:72px;padding:22px 40px;background:#${accent};color:#fff;font-size:22px;font-weight:600}${style}</style></head><body>${body}</body></html>`;
 
 const FILES = [
-  ["Ridge trail map.pdf", "768 KB", "application/pdf"],
-  ["Packing list.txt", "768 KB", "text/plain"],
-  ["Ferry times.csv", "768 KB", "text/csv"],
-  ["Campsite photos.zip", "768 KB", "application/zip"],
+  ["Trail map.pdf", "application/pdf"],
+  ["Packing list.txt", "text/plain"],
+  ["Ferry times.csv", "text/csv"],
 ];
+const CHUNK = 32768;
+const CHUNKS = 24;
+const progress = new Map();
 
 const filesPage = shell("Field Kit — Downloads", "2f6f4f", `
-main{padding:30px 40px}h2{font:600 15px system-ui,-apple-system,sans-serif;color:#777;text-transform:uppercase;letter-spacing:.06em;margin:0 0 14px}
-a.file{display:flex;align-items:center;gap:18px;height:74px;margin-bottom:12px;padding:0 24px;border-radius:14px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.08);color:#1b1b1b;text-decoration:none}
-a.file i{width:38px;height:38px;border-radius:9px;background:#e4efe8;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:20px}
-a.file b{flex:1;font-size:18px;font-weight:600}a.file span{color:#888;width:90px}a.file em{font-style:normal;font-weight:600;color:#2f6f4f;width:110px;text-align:right;opacity:0}
-a.file.got em{opacity:1}.count{margin-top:22px;font-size:20px;color:#555}.count b{font-size:26px;color:#2f6f4f}`,
-`<header>Field Kit · Downloads</header><main><h2>Weekend trip</h2>${FILES.map(([name, size], i) => `<a class="file" href="/file/${i}" download="${name}"><i>⬇︎</i><b>${name}</b><span>${size}</span><em>✓ Started</em></a>`).join("")}
-<div class="count">Clicks the page got: <b id="n">0</b></div></main>
-<script>let n=0;for(const a of document.querySelectorAll("a.file"))a.addEventListener("click",()=>{n++;document.getElementById("n").textContent=n;a.classList.add("got");});</script>`);
+header{height:44px;padding:11px 24px;font-size:18px}main{padding:18px 24px}
+a.file{position:relative;display:flex;align-items:center;gap:14px;width:380px;height:58px;margin-bottom:10px;padding:0 18px;border-radius:12px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.1);color:#1b1b1b;text-decoration:none;overflow:hidden}
+a.file i{font-style:normal;font-size:20px;width:26px;text-align:center}a.file b{flex:1;font-size:18px;font-weight:600}
+a.file u{position:absolute;left:0;bottom:0;height:6px;width:0;background:#2f9e5f;text-decoration:none}a.file s{text-decoration:none;font-size:22px;font-weight:800;color:#2f9e5f;opacity:0}
+a.file.done s{opacity:1}.count{margin-top:16px;display:flex;align-items:baseline;gap:14px;font-size:24px;color:#555;font-weight:600}.count b{font-size:96px;line-height:1;color:#1f6f45;font-variant-numeric:tabular-nums}`,
+`<header>Field Kit · Downloads</header><main>${FILES.map(([name], i) => `<a class="file" data-i="${i}" download="${name}"><i>⬇︎</i><b>${name}</b><s>✓</s><u></u></a>`).join("")}
+<div class="count"><b id="n">0</b><span>of 3 downloading</span></div></main>
+<script>
+const sid=Math.random().toString(36).slice(2);const rows=[...document.querySelectorAll("a.file")];
+rows.forEach((a)=>{a.href="/file/"+a.dataset.i+"?sid="+sid;});
+setInterval(()=>fetch("/progress?sid="+sid,{cache:"no-store"}).then((r)=>r.json()).then((p)=>{let n=0;rows.forEach((a,i)=>{const f=p[i]||0;if(f>0)n++;a.querySelector("u").style.width=(f*100)+"%";a.classList.toggle("done",f>=1);});document.getElementById("n").textContent=n;}).catch(()=>{}),120);
+</script>`);
 
 const widthPage = shell("Page width", "5b3fa0", `
 main{padding:34px 44px}.big{font:700 120px/1 system-ui,-apple-system,sans-serif;letter-spacing:-.03em;font-variant-numeric:tabular-nums}.big small{font-size:40px;color:#888;font-weight:600;margin-left:10px}
@@ -63,15 +69,25 @@ const SYNTHETIC = {
 createServer((req, res) => {
   const host = (req.headers.host || "").split(":")[0];
   const path = normalize(decodeURIComponent(new URL(req.url, "http://x").pathname)).replace(/^(\.\.[/\\])+/, "");
+  if (host === "files.example" && path === "/progress") {
+    const sid = new URL(req.url, "http://x").searchParams.get("sid");
+    res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
+    return res.end(JSON.stringify(progress.get(sid) ?? {}));
+  }
   if (host === "files.example" && path.startsWith("/file/")) {
-    const [name, , type] = FILES[Number(path.slice(6))] ?? FILES[1];
-    const chunk = Buffer.alloc(32768, 46);
-    const chunks = 24;
-    res.writeHead(200, { "content-type": type, "content-disposition": `attachment; filename="${name}"`, "content-length": chunk.length * chunks, "cache-control": "no-store" });
+    const i = Number(path.slice(6));
+    const [name, type] = FILES[i] ?? FILES[0];
+    const sid = new URL(req.url, "http://x").searchParams.get("sid") ?? "";
+    const mine = progress.get(sid) ?? {};
+    progress.set(sid, mine);
+    const chunk = Buffer.alloc(CHUNK, 46);
+    res.writeHead(200, { "content-type": type, "content-disposition": `attachment; filename="${name}"`, "content-length": CHUNK * CHUNKS, "cache-control": "no-store" });
     let sent = 0;
+    mine[i] = 0.02;
     const timer = setInterval(() => {
       res.write(chunk);
-      if (++sent === chunks) {
+      mine[i] = ++sent / CHUNKS;
+      if (sent === CHUNKS) {
         clearInterval(timer);
         res.end();
       }

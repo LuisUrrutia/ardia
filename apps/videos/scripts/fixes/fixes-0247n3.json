@@ -4,54 +4,56 @@
     {
       "scene": "u3downloads",
       "title": "A new download leaves the page alone",
-      "body": "Three download links on one page, clicked one after another. nightly.2 opened the Downloads panel on every new download, and the next click only closed it, so the second file never started. Now the panel stays shut and every click downloads.",
+      "body": "Three download links, one click each. nightly.2 popped the Downloads panel open on every new download, and the next click only closed it, so one file in three never started. Now every click downloads and the panel stays shut.",
       "cam": [
+        40,
         0,
-        0,
-        1100,
-        720
+        650,
+        530
       ],
-      "lead": 1.0,
-      "tail": 7.6
+      "lead": 0.9,
+      "tail": 13.86,
+      "ripple": true
     },
     {
       "scene": "u3floatdrag",
-      "title": "Dragging the floating sidebar's edge resizes it",
-      "body": "Tabs hidden: the sidebar peeks from the left edge, then its edge gets dragged. nightly.2 dropped the sidebar as soon as the pointer left it; now the drag holds it open and resizes it.",
+      "title": "The floating sidebar holds while you drag it",
+      "body": "Tabs hidden: the sidebar peeks out, then gets dragged by its list and by its edge. nightly.2 dropped it once the pointer left it; now a press anywhere holds it until you let go, and the edge drag resizes it.",
       "cam": [
         0,
-        0,
-        1100,
-        720
+        20,
+        620,
+        500
       ],
-      "lead": 3.0,
-      "tail": 4.6
+      "lead": 2.8,
+      "tail": 11.78,
+      "ripple": true
     },
     {
       "scene": "u3edgezones",
       "title": "The hidden sidebar is calmer at the edge",
-      "body": "The pointer creeps to the left edge, drifts past the open sidebar, then comes back. nightly.2 opened it about 5 pt from the edge and shut it the moment the pointer slipped off. Now it opens in the last 3 pt, stays up to 40 pt past the panel, and closes 200 ms after you leave.",
+      "body": "Tabs hidden: the pointer creeps to the edge, drifts past the sidebar, then leaves. nightly.2 shut it the moment the pointer slipped off; now it opens in the last 3 pt, stays up to 40 pt past it, and closes 200 ms after you leave.",
       "cam": [
         0,
         0,
-        1100,
-        720
+        460,
+        380
       ],
-      "lead": 0.6,
-      "tail": 9.6
+      "lead": 1.4,
+      "tail": 11.51
     },
     {
       "scene": "u3edgeoff",
       "title": "Hidden tabs can open from the shortcut only",
-      "body": "With the new Reveal hidden tabs on hover setting off, brushing the left edge does nothing and ⌘S still shows the tabs. nightly.2 had no way to stop the edge from opening them.",
+      "body": "Tabs hidden: the pointer brushes the left edge, then ⌘S. With the new Reveal hidden tabs on hover setting off, only ⌘S brings the tabs back; nightly.2 opened them at every brush.",
       "cam": [
         0,
         0,
-        1100,
-        720
+        460,
+        380
       ],
-      "lead": 0.6,
-      "tail": 7.7,
+      "lead": 0.9,
+      "tail": 7.88,
       "afterSettings": {
         "revealTabsOnHover": false
       }
