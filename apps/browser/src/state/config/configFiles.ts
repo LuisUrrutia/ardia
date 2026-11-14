@@ -4,6 +4,7 @@ import { afterFirstWindow } from "../../lib/afterFirstWindow";
 import { mergedPalettes, parseThemeFile, type RolePalettes, type ThemeRoles } from "../../lib/themeFile";
 import { DEFAULT_LOOK, resolveLook, withSidebarText, type LookBlocks, type SidebarTextSize } from "../../lib/themeLook";
 import { setActiveLook } from "../../lib/activeLook";
+import { minimalismLookOf } from "../../lib/minimalismLook";
 import { useBrowser } from "../browser/store";
 import { hideKeyedToast, showToast, useToasts } from "../app/toasts";
 import { focusedWindowOf } from "../windows/ui";
@@ -34,6 +35,8 @@ let theme: Theme = { name: null, ...NO_THEME };
 let appliedSidebarText: SidebarTextSize = "default";
 let stopWatchingSidebarText: (() => void) | null = null;
 let revision = 0;
+let minimalism = false;
+let stopWatchingMinimalism: (() => void) | undefined;
 let windowsUp = false;
 let reported = new Set<string>();
 let pendingProblems = false;
@@ -76,11 +79,14 @@ const sidebarTextSize = () => useBrowser.getState().settings.sidebarTextSize;
 function applyTheme(next: Theme) {
   if (!defaults) return;
   const size = sidebarTextSize();
-  if (next.name === theme.name && size === appliedSidebarText && JSON.stringify([next.roles, next.look]) === JSON.stringify([theme.roles, theme.look])) return;
+  const minimal = useBrowser.getState().settings.minimalismMode;
+  if (next.name === theme.name && size === appliedSidebarText && minimal === minimalism && JSON.stringify([next.roles, next.look]) === JSON.stringify([theme.roles, theme.look])) return;
   const before = useBasePalette.getState().look;
-  const look = withSidebarText(resolveLook(next.look), size);
+  const resolved = resolveLook(next.look);
+  const look = withSidebarText(minimal ? minimalismLookOf(resolved) : resolved, size);
   theme = next;
   appliedSidebarText = size;
+  minimalism = minimal;
   revision += 1;
   setActiveLook(look);
   const themed = next.roles || look !== DEFAULT_LOOK;
@@ -222,6 +228,9 @@ export function startConfigFiles(roles: RolePalettes) {
   stopWatchingSidebarText = useBrowser.subscribe((s, prev) => {
     if (s.settings.sidebarTextSize !== prev.settings.sidebarTextSize) applyTheme(theme);
   });
+  stopWatchingMinimalism = useBrowser.subscribe((s, prev) => {
+    if (s.settings.minimalismMode !== prev.settings.minimalismMode) applyTheme(theme);
+  });
   afterFirstWindow(() => {
     windowsUp = true;
     onConfigChange(changed);
@@ -234,6 +243,9 @@ export function startConfigFiles(roles: RolePalettes) {
 
 export function resetConfigFilesForTests() {
   clearTimeout(timer);
+  stopWatchingMinimalism?.();
+  stopWatchingMinimalism = undefined;
+  minimalism = false;
   timer = undefined;
   defaults = null;
   theme = { name: null, ...NO_THEME };

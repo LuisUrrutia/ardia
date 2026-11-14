@@ -141,3 +141,16 @@ test("the entry lists read no tab field their cache doesn't compare", async () =
   assert.ok(fields.delete("id"), "an empty card is looked up in the splits by its id, which never changes");
   for (const field of fields) assert.ok(ENTRY_TAB_FIELDS.includes(field), `the entries read a tab's ${field}, which their cache doesn't compare`);
 });
+
+test("Minimalism mode hides an empty tab's row and strip entry as the command bar style does, and turning it off brings them back", async () => {
+  const { stripEntries } = await import("../tabs/topStrip.ts");
+  hydrate();
+  S().updateSettings({ newTabOpens: "page", minimalismMode: false });
+  S().updateTab("t7", { url: "", title: "" });
+  const shows = () => [sidebarEntries(S(), "w").list.includes("t:t7"), sidebarEntries(S(), "w", "default").list.includes("t:t7"), JSON.stringify(stripEntries(S(), "w", "default")).includes('"t7"')];
+  assert.deepEqual(shows(), [true, true, true]);
+  S().updateSettings({ minimalismMode: true });
+  assert.deepEqual(shows(), [false, false, false], "the lists kept what they held before Minimalism mode was turned on");
+  S().updateSettings({ minimalismMode: false });
+  assert.deepEqual(shows(), [true, true, true], "the lists kept what they held before Minimalism mode was turned off");
+});

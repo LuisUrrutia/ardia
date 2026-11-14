@@ -24,7 +24,7 @@ export function sameEntryTabs(tabs: BrowserState["tabs"], was: BrowserState["tab
 
 export type EntriesInputs = { tabs: BrowserState["tabs"]; rest: readonly unknown[] };
 
-export const entriesInputs = (s: BrowserState): EntriesInputs => ({ tabs: s.tabs, rest: [s.windows, s.groups, s.splits, s.settings.newTabOpens] });
+export const entriesInputs = (s: BrowserState): EntriesInputs => ({ tabs: s.tabs, rest: [s.windows, s.groups, s.splits, s.settings.newTabOpens, s.settings.minimalismMode] });
 
 export const sameEntriesInputs = (now: EntriesInputs, was: EntriesInputs) => now.rest.every((v, i) => v === was.rest[i]) && sameEntryTabs(now.tabs, was.tabs);
 

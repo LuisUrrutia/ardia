@@ -79,6 +79,7 @@ export function Sidebar({ width }: { width: number }) {
       {(ghost: Ghost | null, controller) => {
         drag.current = controller;
         return (
+          <SidebarRowLookContext.Provider value={rowLook}>
           <SidebarDropArea
             ref={(v) => {
               controller.root = v;
@@ -96,8 +97,7 @@ export function Sidebar({ width }: { width: number }) {
               }}
               onLayout={(e) => setAvailable(e.nativeEvent.layout.height)}
             >
-              <SidebarRowLookContext.Provider value={rowLook}>
-                {pages.map((page) => (
+              {pages.map((page) => (
                   <SidebarPage
                     key={page.id}
                     profileId={page.id}
@@ -114,7 +114,6 @@ export function Sidebar({ width }: { width: number }) {
                     onScrollY={onScrollY}
                   />
                 ))}
-              </SidebarRowLookContext.Provider>
             </View>
 
             <TintInk>
@@ -162,6 +161,7 @@ export function Sidebar({ width }: { width: number }) {
               {ghost ? <DragGhost ghost={ghost} /> : null}
             </SidebarTextScope>
           </SidebarDropArea>
+          </SidebarRowLookContext.Provider>
         );
       }}
     </DragProvider>
