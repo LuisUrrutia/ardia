@@ -221,6 +221,12 @@ export const generalRows = {
           keywords: ["blank tab", "empty tab", "reuse", "one new tab", "multiple new tabs", "cmd t"],
           shown: (settings) => newTabOpensOf(settings) === "page",
         },
+        newTabUrl: {
+          title: "New tab page address",
+          description: "Type a web address, or Ardia's History, Bookmarks or Downloads page, and ⌘T, + New Tab, a group's New Tab and new windows, private windows included, open it instead of the New Tab page, as Chrome does with a custom New Tab page. Leave it empty for the New Tab page.",
+          keywords: ["custom new tab", "new tab url", "home page", "homepage", "start page", "custom url", "cmd t"],
+          shown: (settings) => newTabOpensOf(settings) === "page",
+        },
         newTabPosition: {
           title: "Add new tabs",
           description: "Where ⌘T and + New Tab put the new tab. Next to the current tab, it joins that tab's group (from a pinned tab, it goes first in the list), and closing it brings you back. Links open next to their page either way.",

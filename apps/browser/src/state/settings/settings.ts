@@ -1,8 +1,10 @@
 import {
   allEngines,
   controllingExtensionEngine,
+  appUrlRoute,
   engineById,
   extensionEngineId,
+  fixupUrl,
   makeCustomEngine,
   resolveInput,
   validateEngine,
@@ -90,6 +92,7 @@ export const SETTING_SPECS = {
   appLinksFirst: flag(false, SYNCED),
   newTabOpens: oneOf(["page", "commandBar"], "page", SYNCED),
   reuseEmptyNewTab: flag(false, SYNCED),
+  newTabUrl: text("", SYNCED),
   warnBeforeClosingLastTab: flag(true, SYNCED),
   undoReopensClosedTab: flag(false, SYNCED),
   warnBeforeMovingTabsToProfile: flag(true, SYNCED),
@@ -251,6 +254,14 @@ export function searchUrlPrefix(settings: Settings): string {
 }
 
 export const resolveTyped = (settings: Settings, input: string): string => resolveInput(fromLegacyUrl(input.trim()), searchUrlPrefix(settings));
+
+export function customNewTabUrl(settings: Pick<Settings, "newTabOpens" | "minimalismMode" | "newTabUrl">): string | undefined {
+  if (newTabOpensOf(settings) !== "page") return undefined;
+  const url = fixupUrl(fromLegacyUrl(settings.newTabUrl.trim()));
+  return url && opensAsNewTab(url) ? url : undefined;
+}
+
+const opensAsNewTab = (url: string) => /^https?:\/\/[^/?#]/i.test(url) || url === "about:blank" || appUrlRoute(url)?.kind === "page";
 
 function validateCustomEngine(settings: Settings, input: EngineInput, ignoreId?: string): string | null {
   return validateEngine(input, searchEngines(settings), ignoreId);
