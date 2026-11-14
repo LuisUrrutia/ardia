@@ -672,6 +672,20 @@ class BrowseEndToEnd(unittest.TestCase):
         time.sleep(0.5)
         self.assertEqual(json.loads(self.browse("get", "text", "#report", session=session).stdout), {"clicked": ["box"]})
 
+    def test_screenshot_if_changed_skips_an_unchanged_view(self):
+        session = "if-changed"
+        self.browse("open", self.url("focus.html"), session=session)
+        first = SCRATCH / "if-changed-1.png"
+        second = SCRATCH / "if-changed-2.png"
+        third = SCRATCH / "if-changed-3.png"
+        self.assertIn("Screenshot saved", self.browse("screenshot", str(first), "--if-changed", session=session).stdout)
+        same = self.browse("screenshot", str(second), "--if-changed", session=session).stdout
+        self.assertIn("Unchanged since the last screenshot", same)
+        self.assertFalse(second.exists())
+        self.browse("eval", "document.body.style.background = 'rgb(200, 30, 30)'", session=session)
+        self.assertIn("Screenshot saved", self.browse("screenshot", str(third), "--if-changed", session=session).stdout)
+        self.assertTrue(third.exists())
+
     def test_open_returns_a_page_whose_load_never_ends_with_a_note(self):
         import socket
 
