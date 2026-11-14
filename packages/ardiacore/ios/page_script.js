@@ -1298,7 +1298,7 @@
         if (t.failed) return Promise.reject(new DOMException("The element has no supported sources.", "NotSupportedError"));
         if (t.detached) {
           attach(self, t);
-          if (t.time > 0) send("fairPlay", { op: "seek", time: t.time, seq: ++t.seeks });
+          if (t.time > 0 || t.seeks) send("fairPlay", { op: "seek", time: t.time, seq: ++t.seeks });
         }
         if (t.paused) {
           if (t.ended) seek(t, self, 0);
@@ -1489,6 +1489,10 @@
       }
       const fail = (el, t) => {
         if (t.failed) return;
+        if (media === el && drives(t)) {
+          request = null;
+          send("fairPlay", { op: "stop" });
+        }
         t.failed = true;
         t.playing = false;
         t.paused = true;
@@ -1512,7 +1516,7 @@
         if (m.event === "remote") return remote(m.command, m.time);
         const el = media;
         const t = el && tracks.get(el);
-        if (!t || m.gen !== t.gen) return;
+        if (!t || m.gen !== t.gen || t.failed) return;
         if (m.event === "request") {
           request = { gen: m.gen, message: fromBase64(m.spc).buffer };
           deliverRequest();
