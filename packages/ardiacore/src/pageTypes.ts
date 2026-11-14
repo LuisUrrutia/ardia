@@ -65,8 +65,9 @@ export type PageShare = {
   fileUrl?: string;
 };
 export type PageCommand = {
-  command: "search" | "ask" | "copyLinkToHighlight" | "escape" | "share";
+  command: "search" | "ask" | "copyLinkToHighlight" | "escape" | "share" | "hideElement";
   text: string;
+  point?: [number, number];
   modifiers?: { metaKey?: boolean; shiftKey?: boolean; altKey?: boolean; middle?: boolean };
   share?: PageShare;
   anchor?: [number, number, number, number];
