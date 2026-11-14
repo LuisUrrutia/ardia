@@ -167,6 +167,7 @@ export type DockSelectionProps = ViewProps & {
   dark: boolean;
   glass?: boolean;
   colorRing?: boolean;
+  outline?: boolean;
 };
 
 export const DockSelection = requireNativeViewManager<DockSelectionProps>("ArdiaDockSelection");

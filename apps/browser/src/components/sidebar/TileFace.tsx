@@ -9,14 +9,19 @@ import { SLIDE } from "../tabstrip/tokens";
 import { TabBadges } from "../media/TabBadges";
 import { TabIcon } from "./TabIcon";
 import { sidebarTokens, TILE_GLOW, TILE_RIM, useSidebarTokens } from "./tokens";
+import { useSelectedTopApp } from "../../state/app/theme";
+import type { Settings } from "../../state/settings/settings";
 import { useQuietRows } from "./rowLook";
 import { useIsSleeping } from "../../state/tabs/sleepingTabs";
 import { tileLetterOf } from "../../lib/tileLetter";
+import { useTabState } from "../../state/tabs/tabStateWatch";
+import { isClosedTopApp } from "../../state/sidebar/rowState";
 
 const SELECTION_STROKE = 3;
 const GLASS_RING = 2;
 
 type FaceState = { width: number; active: boolean; selected: boolean; hovered: boolean; pressed: boolean };
+type TopAppLook = Settings["selectedTopApp"];
 
 export const TileFace = memo(function TileFace({ tabId, badge, ...state }: FaceState & { tabId: string; badge?: ReactNode }) {
   return useQuietRows() ? <LetterTile tabId={tabId} badge={badge} {...state} /> : <RichTileFace tabId={tabId} badge={badge} {...state} />;
@@ -63,6 +68,8 @@ const RichTileFace = memo(function RichTileFace({ tabId, badge, ...state }: Face
   const tab = useTab(tabId);
   const tileTheme = useTileTheme(tab?.url ?? "", tab?.favicon, tab?.customIcon, tab?.profileId ?? "");
   const glass = useGlass();
+  const topApp = useSelectedTopApp();
+  const closed = useTabState(tabId, (s) => isClosedTopApp(s, tabId));
   if (!tab) return null;
   const { width, active } = state;
   const icon = (
@@ -73,7 +80,7 @@ const RichTileFace = memo(function RichTileFace({ tabId, badge, ...state }: Face
   );
   if (glass)
     return (
-      <GlassTile {...state} tileTheme={tileTheme}>
+      <GlassTile {...state} tileTheme={tileTheme} topApp={topApp} bare={closed}>
         {icon}
         {badge}
       </GlassTile>
@@ -87,11 +94,12 @@ const RichTileFace = memo(function RichTileFace({ tabId, badge, ...state }: Face
         fill={tileTheme.theme.kind === "template" ? tileTheme.theme.fill : undefined}
         stroke={tileTheme.theme.kind === "template" ? tileTheme.theme.stroke : undefined}
         cornerRadius={radius.pinned}
-        strokeWidth={SELECTION_STROKE}
+        strokeWidth={topApp === "fill" ? 0 : SELECTION_STROKE}
+        outline={topApp === "outline"}
         dark={theme.dark}
         style={{ width, height: layout.pinnedHeight, alignItems: "center", justifyContent: "center" }}
       >
-        {tileTheme.theme.kind === "template" ? (
+        {tileTheme.theme.kind === "template" && topApp !== "outline" ? (
           <View>
             <View style={{ width: 16, height: 16 }} />
             <TabBadges tabId={tabId} />
@@ -101,6 +109,13 @@ const RichTileFace = memo(function RichTileFace({ tabId, badge, ...state }: Face
         )}
         {badge}
       </DockSelection>
+    );
+  if (active && topApp !== "ring")
+    return (
+      <PlainSelectedTile width={width} outline={topApp === "outline"}>
+        {icon}
+        {badge}
+      </PlainSelectedTile>
     );
   if (active)
     return (
@@ -130,14 +145,34 @@ const RichTileFace = memo(function RichTileFace({ tabId, badge, ...state }: Face
       </Surface>
     );
   return (
-    <RestingTile {...state}>
+    <RestingTile {...state} bare={closed}>
       {icon}
       {badge}
     </RestingTile>
   );
 });
 
-export function RestingTile({ width, selected, hovered, pressed, children }: Omit<FaceState, "active"> & { children: ReactNode }) {
+function PlainSelectedTile({ width, outline, children }: { width: number; outline: boolean; children: ReactNode }) {
+  const theme = useTheme();
+  return (
+    <View
+      style={{
+        width,
+        height: layout.pinnedHeight,
+        borderRadius: radius.pinned,
+        borderWidth: outline ? SELECTION_STROKE : 0,
+        borderColor: theme.pinnedSelectedFill,
+        backgroundColor: outline ? undefined : theme.pinnedSelectedFill,
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      {children}
+    </View>
+  );
+}
+
+export function RestingTile({ width, selected, hovered, pressed, bare = false, children }: Omit<FaceState, "active"> & { bare?: boolean; children: ReactNode }) {
   const theme = useTheme();
   const tokens = useSidebarTokens();
   const quiet = useQuietRows();
@@ -161,10 +196,11 @@ export function RestingTile({ width, selected, hovered, pressed, children }: Omi
     );
   if (glass)
     return (
-      <GlassTile width={width} active={false} selected={selected} hovered={hovered} pressed={pressed} tileTheme={null}>
+      <GlassTile width={width} active={false} selected={selected} hovered={hovered} pressed={pressed} tileTheme={null} bare={bare}>
         {children}
       </GlassTile>
     );
+  if (bare && !selected && !hovered && !pressed) return <View style={{ width, height: layout.pinnedHeight, alignItems: "center", justifyContent: "center" }}>{children}</View>;
   return (
     <View
       style={{
@@ -183,12 +219,13 @@ export function RestingTile({ width, selected, hovered, pressed, children }: Omi
   );
 }
 
-function GlassTile({ width, active, selected, hovered, pressed, tileTheme, children }: FaceState & { tileTheme: TileTheme | null; children: ReactNode }) {
+function GlassTile({ width, active, selected, hovered, pressed, tileTheme, topApp = "ring", bare = false, children }: FaceState & { tileTheme: TileTheme | null; topApp?: TopAppLook; bare?: boolean; children: ReactNode }) {
   const theme = useTheme();
   const tokens = useSidebarTokens();
+  if (bare && !active && !selected && !hovered && !pressed) return <View style={{ width, height: layout.pinnedHeight, alignItems: "center", justifyContent: "center" }}>{children}</View>;
   return (
     <View style={{ width, height: layout.pinnedHeight }}>
-      <GlassFill radius={radius.pinned} state={pressed ? "pressed" : active ? "active" : hovered || selected ? "lit" : "rest"}>
+      <GlassFill radius={radius.pinned} state={pressed ? "pressed" : active && topApp !== "outline" ? "active" : hovered || selected ? "lit" : "rest"}>
         {active ? (
           <DockSelection
             image={tileTheme?.image}
@@ -196,7 +233,8 @@ function GlassTile({ width, active, selected, hovered, pressed, tileTheme, child
             theme={tileTheme?.theme.kind}
             fill={tileTheme?.theme.kind === "template" ? tileTheme.theme.fill : undefined}
             cornerRadius={radius.pinned}
-            strokeWidth={GLASS_RING}
+            strokeWidth={topApp === "fill" ? 0 : GLASS_RING}
+            outline={topApp === "outline"}
             dark={theme.dark}
             glass
             colorRing

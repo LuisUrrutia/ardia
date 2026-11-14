@@ -47,6 +47,7 @@ const TOP = [
   ["keyboard shortcuts", ["shortcuts.actions"]],
   ["hotkeys", ["shortcuts.actions", "shortcuts.extensionShortcuts"]],
   ["⌘L", ["appearance.commandBarPlacement"]],
+  ["shrink", ["tabs.hideToolbarWhileScrolling"]],
   ["⌘z", ["shortcuts.undoReopensClosedTab"]],
   ["update", ["general.updateChannel", "general.autoUpdate"]],
   ["nightly", ["general.updateChannel"]],
@@ -97,6 +98,7 @@ const TOP = [
   ["minimal", ["appearance.minimalismMode"]],
   ["minimalism", ["appearance.minimalismMode"]],
   ["mouse wheel", ["privacy.commandScrollZoom"]],
+  ["autoplay", ["privacy.blockAutoplayEverywhere"]],
   ["1password", ["passwords.managerApps"]],
   ["warn quitting", ["general.warnBeforeQuitting"]],
   ["trakers", ["privacy.blockTrackers"]],
@@ -317,4 +319,9 @@ test("arrowing through results scrolls only as far as the selected row needs", a
 
 test("Minimalism mode turns up for every word people use for it", () => {
   for (const query of ["minimal", "minimalism", "clean", "compact", "zen", "distraction free", "no toolbar"]) assert.ok(ids(query).includes("appearance.minimalismMode"), query);
+});
+
+test("Block autoplay on every site sits in All sites, outside the per-profile Site permissions list", () => {
+  const entry = SETTINGS_INDEX.find((p) => p.entry.id === "privacy.blockAutoplayEverywhere").entry;
+  assert.equal(entry.section, "All sites");
 });

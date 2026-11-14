@@ -155,7 +155,7 @@ export const generalRows = {
         hideToolbarWhileScrolling: {
           title: "Hide toolbar while scrolling",
           description: "Scrolling down tucks the toolbar into a thin strip with the site's name. Scroll up, or click the strip, to bring it back. Your tabs stay put: hiding them is Auto-hide tabs.",
-          keywords: ["auto hide toolbar", "address bar hides", "collapse", "compact", "scroll"],
+          keywords: ["auto hide toolbar", "address bar hides", "collapse", "compact", "scroll", "shrink", "shrinking", "address bar shrinks", "toolbar shrinks", "page shifts", "page jumps"],
         },
         showSidebarButton: { advanced: true, title: "Show the Hide Tabs button", description: "The button at the toolbar's leading edge. Auto-hide tabs, ⌘S and View › Auto-Hide Tabs still hide and show the tabs.", keywords: ["toggle sidebar", "sidebar button", "hide tabs button"] },
         showClearButton: {
@@ -191,8 +191,13 @@ export const generalRows = {
         },
         showTabHoverMenu: {
           title: "Show tab hover menu",
-          description: "Rest the pointer on a tab or Top App and a card shows its title, address, and Pin, Bookmark, Split and Reset. Off, resting on a tab shows only its full title and site as a plain tooltip, and every one of those actions is in the tab's right-click menu. A playing tab's mini player still shows.",
+          description: "Rest the pointer on a tab or Top App and a card shows its title, address, and Pin, Bookmark, Split and Reset. Off, resting on a tab, in the sidebar or the top tab strip, shows only its full title and site as a plain tooltip, and every one of those actions is in the tab's right-click menu. A playing tab's mini player still shows.",
           keywords: ["hover", "hover card", "popup", "pop-up", "tooltip", "tab actions", "reset", "distracting", "dia"],
+        },
+        closedTopAppTiles: {
+          title: "Draw tiles for closed Top Apps",
+          description: "As in Dia, every Top App sits on a tile. Off, a Top App whose page isn't open shows just its icon, faded, so you can tell at a glance which ones are open; it gets its tile back when you open it or point at it.",
+          keywords: ["pinned tiles", "favorites", "top apps", "tile", "tiles", "background", "closed", "open", "unloaded", "faded", "contrast", "prominent", "quiet", "subtle", "dia"],
         },
         fadeUnloadedTabs: {
           advanced: true,
@@ -214,6 +219,12 @@ export const generalRows = {
           title: "Reuse an empty New Tab page",
           description: "When the tab you're on is still an empty New Tab page, ⌘T, + New Tab and a double-click under the tabs put the cursor in its address field instead of opening another empty tab. Off, each one opens a new tab.",
           keywords: ["blank tab", "empty tab", "reuse", "one new tab", "multiple new tabs", "cmd t"],
+          shown: (settings) => newTabOpensOf(settings) === "page",
+        },
+        newTabUrl: {
+          title: "New tab page address",
+          description: "Type a web address, or Ardia's History, Bookmarks or Downloads page, and ⌘T, + New Tab, a group's New Tab and new windows, private windows included, open it instead of the New Tab page, as Chrome does with a custom New Tab page. Leave it empty for the New Tab page.",
+          keywords: ["custom new tab", "new tab url", "home page", "homepage", "start page", "custom url", "cmd t"],
           shown: (settings) => newTabOpensOf(settings) === "page",
         },
         newTabPosition: {
@@ -273,6 +284,11 @@ export const generalRows = {
           title: "Open new-tab links in",
           description: "Where a link that would open a new tab goes when you click it in a tab. ⌘-click still opens a tab behind, and sign-in pop-ups stay windows. Links from other apps follow Settings › General › Open links from other apps in Little Ardia.",
           keywords: ["peek", "new tab", "target blank", "links", "preview", "open links"],
+        },
+        peekButtons: {
+          title: "Show Peek buttons",
+          description: "Close, Open as Tab and Split View sit in the Peek's title bar, or float beside it on the left or right.",
+          keywords: ["peek", "buttons", "close", "expand", "split view", "left", "right", "side", "position", "arc", "zen"],
         },
         peekModifier: {
           advanced: true,

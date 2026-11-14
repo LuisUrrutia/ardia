@@ -511,6 +511,7 @@ const fakeModules = {
     setSplitLinkModifier: () => null,
     setPeekOtherSiteTabs: () => null,
     setSelectionPopover: () => null,
+    setBlockAutoplayEverywhere: () => null,
     setCommandScrollZoom: () => null,
     setLittleArdiaOpensNewTabLinks: () => null,
     setAutoPictureInPicture: () => null,

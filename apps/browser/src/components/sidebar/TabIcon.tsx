@@ -9,6 +9,7 @@ import { ENGINE_NAMES, ENGINE_SYMBOLS, type PageEngine } from "../../state/engin
 import { FADED, markedEngine, useIconMarks } from "../../state/sidebar/rowState";
 import { NO_GROUP_ICON } from "../../state/groups/groupIcons";
 import { iconSymbol } from "../../lib/customIcon";
+import { drawnIcon } from "../../state/pins/rowIcons";
 import { Favicon } from "../favicon/Favicon";
 
 export const TabIcon = memo(function TabIcon({
@@ -100,6 +101,7 @@ function Icon({
   direct?: boolean;
 }) {
   const theme = useTheme();
+  icon = drawnIcon(icon);
   const symbol = iconSymbol(icon);
   if (symbol) {
     const ink = icon === NO_GROUP_ICON ? sidebarTokens(theme).noGroupIcon : theme.icon;

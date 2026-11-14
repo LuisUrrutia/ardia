@@ -31,6 +31,7 @@ BOOL gDisplayMediaPicker = YES;
 }
 
 static BOOL gSelectionPopover = YES;
+static BOOL gBlockAutoplayEverywhere = NO;
 static char kScriptFramesKey;
 
 static NSDictionary *DisplayMediaAudioOffer(NSDictionary *message) {
@@ -78,7 +79,7 @@ void AnswerHello(ArdiaCoreTab *tab, NSString *profile, NSString *frameId, BOOL m
   if (origin && [origin hasPrefix:@"http"])
     [ArdiaServices siteSettings:profile ?: @"" origin:origin reply:^(NSDictionary *settings, NSString *) {
       NSDictionary *autoplay = [settings[@"autoplay"] isKindOfClass:NSDictionary.class] ? settings[@"autoplay"] : nil;
-      answer([autoplay[@"value"] isEqual:@"block"]);
+      answer([autoplay[@"value"] isEqual:@"block"] || (gBlockAutoplayEverywhere && (!autoplay || [autoplay[@"isDefault"] boolValue])));
     }];
   else
     answer(NO);
@@ -100,6 +101,10 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
 + (void)setDisplayMediaPicker:(BOOL)enabled {
   gDisplayMediaPicker = enabled;
   ArdiaCoreEngine.pagesPickDisplayMedia = enabled;
+}
+
++ (void)setBlockAutoplayEverywhere:(BOOL)enabled {
+  gBlockAutoplayEverywhere = enabled;
 }
 
 + (void)setSelectionPopoverEnabled:(BOOL)enabled {
