@@ -8,7 +8,7 @@ Usage: ardia browse <command> [args] [options]
 Same commands, flags and output (text and --json) as agent-browser, so an agent that
 knows `agent-browser <args>` can type `ardia browse <args>`. It drives the running Ardia
 over the ardia command's control connection (Settings > "Let the ardia command control
-Ardia"), through pydoll. Input is instant unless --humanize. Actions print what they changed
+Ardia"), with a small CDP client of its own. Input is instant unless --humanize. Actions print what they changed
 (nodes with refs, URL, title, the POSTs they caused), a session works in background tabs of its
 own (`tab active` picks the user's tab), and text output stops at about 12,000 characters (narrow it
 with snapshot -i or -s <css>).

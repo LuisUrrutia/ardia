@@ -578,7 +578,6 @@ def main():
     sys.stderr = redact.RedactingStream(sys.stderr)
     redact.install_log_redaction()
     logging.basicConfig(level=logging.INFO if config.get("debug") else logging.WARNING, format="%(asctime)s %(name)s %(levelname)s %(message)s")
-    logging.getLogger("pydoll").setLevel(logging.CRITICAL)
     logging.getLogger("websockets").setLevel(logging.ERROR)
     load_commands()
     lease = take_lease()

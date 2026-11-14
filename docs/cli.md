@@ -1,7 +1,7 @@
 # The `ardia` command
 
 `ardia` drives a running Ardia from the terminal. `ardia browse` is how an agent drives the browser: agent-browser's
-commands on top of [pydoll](https://pydoll.tech) 3.0. The other commands run Ardia's own commands, stream its events,
+commands on a small CDP client of its own (`ardia_cli/cdp.py` over the WebSocket client in `ardia_cli/wsclient.py`). The other commands run Ardia's own commands, stream its events,
 run hooks and userscripts, edit its config and read its browsing data. It's a separate download, not part of the app
 bundle. The app ships `install.sh` and runs it on its own: about 8 s after the first window of a launch, when no CLI
 is installed and `ardia-cli.json` says none ever was (no `version`, `binPath` or `autoInstalledAt`), it installs one
@@ -219,8 +219,8 @@ mouse position, so a humanized path starts where the last one ended. `ardia brow
   (`pid:generation:browser path`, or the browser WebSocket path) changed. Admission and the idle check run on one
   event loop under the command lock, so a disconnect never races a command.
 - **Connection loss is terminal.** When Ardia closes the connection itself (Stop, control turned off, Ardia quit),
-  the session ends: queued commands fail, nothing reconnects and nothing is replayed. pydoll's `ConnectionHandler`
-  is subclassed so it never reconnects on its own, with a 256 MB `max_size`. A link found dead when a command
+  the session ends: queued commands fail, nothing reconnects and nothing is replayed. `cdp.Connection` opens once
+  and never reconnects, with a 256 MB `max_size`; a message over it closes the connection (1009). A link found dead when a command
   starts is treated the same way, before any endpoint is resolved again; only the daemon's own idle disconnect
   reconnects. A command that may already have been dispatched is never retried; it reports that its outcome is
   unknown (exit 2 on connection loss, 1 otherwise). That covers a timeout on any method that changes something
@@ -310,12 +310,12 @@ match first (case and spacing aside, a trailing `*` or `:` too), then a whole-wo
 
 Input is instant by default: clicks dispatch straight at the target point, `fill` focuses the field with `DOM.focus`,
 selects all, presses Backspace and puts the text in (one `Input.insertText` for a plain field, see below), and scrolls
-are single wheel events. `--humanize` (or `AGENT_BROWSER_HUMANIZE=1` for the session) turns on pydoll's own humanized
-classes: `Mouse` (`click`, `dblclick`, `hover`, `drag`, `mouse move`; Bézier paths with Fitts timing, overshoot and
+are single wheel events. `--humanize` (or `AGENT_BROWSER_HUMANIZE=1` for the session) turns on the humanized
+classes in `browse/human.py`, ported from pydoll 3.0 (MIT): `Mouse` (`click`, `dblclick`, `hover`, `drag`, `mouse move`; Bézier paths with Fitts timing, overshoot and
 tremor, press and hold timing), `Scroll` (`scroll`, `scrollintoview`, and scrolling a target into view before a
 click), and `Keyboard` (`type`, `fill` (click in, select all, Backspace, then type), `keyboard type`, `press`), with
-pydoll's default timing. Typos are off: `SteadyKeyboard` overrides `Keyboard._should_make_typo` to return False, and
-`tests/test_browse.py` fails if a pydoll update renames it or stops routing humanized typing through it.
+pydoll's default timing. Typos are left out: the port has no typo code, and `tests/test_browse.py` checks humanized
+typing types exactly the text.
 `keyboard inserttext` stays an instant `Input.insertText`. `--no-humanize` and `AGENT_BROWSER_NO_HUMANIZE=1` are
 still accepted; they force it off, so `AGENT_BROWSER_HUMANIZE=1 AGENT_BROWSER_NO_HUMANIZE=1` is off and a
 `--humanize` flag beats both.
@@ -451,7 +451,7 @@ without waiting). A hidden tab fails with `code: "tab_hidden"` and the exact
 fix, `[t2] is a background tab, … use: ardia browse tab t2 --show (or open <url> --show)` (`data.use` carries the
 command). `open --show`, `tab new --show`, `tab <id> --show` or `AGENT_BROWSER_SHOW_TAB=1` show the tab
 (`Target.activateTarget`, retried until the page reports visible and the tab target's `embedderData.tabActive` has
-held for 0.3 s, since the app could switch back right after). `scroll` on a hidden tab keeps pydoll's
+held for 0.3 s, since the app could switch back right after). `scroll` on a hidden tab keeps the
 humanized timing but applies each step with `scrollBy` in the isolated world; `record` and `stream` refuse a hidden
 tab (it paints no frames). The tab probe that picks the active tab on `--port`/`--ws` reads visibility straight after
 attaching, before an engine that keeps attached tabs live has made them visible.
@@ -1090,12 +1090,12 @@ with the token redacted like everywhere else, and falls back to the visibility c
 The app writes `ArdiaControl.json` when the setting is on:
 `{"port":P,"browser":"/devtools/browser/<guid>","token":"…","pid":…,"generation":N}`. The CLI opens it without
 following links and trusts it only when it's a regular file the user owns, mode 0600, and `pid` is alive. It connects
-to `ws://127.0.0.1:P<browser>?token=<token>`; pydoll keeps the query on every `/devtools/page/<id>` URL, so page
-sockets carry the token too. A missing, stale or unsafe file, or a refused connection, prints one line and exits 2:
+to `ws://127.0.0.1:P<browser>?token=<token>`; every CDP call goes over that one browser socket
+(flattened sessions), so it always carries the token. A missing, stale or unsafe file, or a refused connection, prints one line and exits 2:
 `Ardia isn't running, or "Let the ardia command control Ardia" is off in Settings.` There's no port scanning and no
 `/json` fallback on this path. The token never reaches the output: stdout and stderr are redacted as a stream (a token
 split across writes is held back until it's complete), and so are log records and everything a logging handler
-formats, tracebacks included. pydoll's loggers stay at ERROR. The stream holds back only a tail that could start a
+formats, tracebacks included. The `websockets` logger (only the `stream` server uses it) stays at ERROR. The stream holds back only a tail that could start a
 registered token and releases everything on `flush()`, at exit and on SIGTERM or SIGHUP (exit 143). A token printed in
 two parts with an explicit flush between them gets through; that gap is accepted.
 

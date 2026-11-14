@@ -1,11 +1,10 @@
 import asyncio
 import contextlib
-import json
 import random
 import re
 
 from ardia_cli import command_metrics
-from ardia_cli.browse import fields
+from ardia_cli.browse import fields, human
 from ardia_cli.browse.errors import BrowseError, CdpError, Gated, OutcomeUnknown
 
 SCROLL_DEFAULT = 300
@@ -218,14 +217,11 @@ def left_document(error: BrowseError) -> bool:
     return error.code == "document_changed" or error.code == "outcome_unknown" and "changed document" in error.message
 
 
-def mouse_button(name: str | None):
-    from pydoll.protocol.input.types import MouseButton
-
+def mouse_button(name: str | None) -> str:
     name = (name or "left").lower()
-    mapping = {"left": MouseButton.LEFT, "right": MouseButton.RIGHT, "middle": MouseButton.MIDDLE}
-    if name not in mapping:
+    if name not in ("left", "right", "middle"):
         raise BrowseError(f"Unknown mouse button: {name} (left, right or middle)")
-    return mapping[name]
+    return name
 
 
 class ScrollDriver:
@@ -236,29 +232,15 @@ class ScrollDriver:
         self.scripted = scripted
         self.element = element
 
-    async def _execute_command(self, command):
-        from pydoll.constants import Scripts
-
-        method = command["method"]
-        params = command.get("params") or {}
-        if method == "Runtime.evaluate":
-            expression = params.get("expression", "")
-            if expression == Scripts.GET_VIEWPORT_CENTER:
-                return {"result": {"result": {"value": json.dumps([int(self.point[0]), int(self.point[1])])}}}
-            value = await self.page.call(f"() => ({expression})", frame=self.frame)
-            return {"result": {"result": {"value": value}}}
-        if method == "Input.dispatchMouseEvent":
-            params = dict(params)
-            params["x"], params["y"] = int(self.point[0]), int(self.point[1])
-            if self.scripted:
-                dx, dy = params.get("deltaX") or 0, params.get("deltaY") or 0
-                if self.element is not None:
-                    await self.page.call("(el, x, y) => el.scrollBy(x, y)", self.element, dx, dy, frame=self.element.frame)
-                else:
-                    await self.page.call("(x, y) => scrollBy(x, y)", dx, dy, frame=self.frame)
-                return {"result": {}}
-        await self.page.send(method, params, input_event=True)
-        return {"result": {}}
+    async def wheel(self, dx: int, dy: int):
+        if self.scripted:
+            if self.element is not None:
+                await self.page.call("(el, x, y) => el.scrollBy(x, y)", self.element, dx, dy, frame=self.element.frame)
+            else:
+                await self.page.call("(x, y) => scrollBy(x, y)", dx, dy, frame=self.frame)
+            return
+        await self.page.send("Input.dispatchMouseEvent", {"type": "mouseWheel", "x": int(self.point[0]), "y": int(self.point[1]), "deltaX": dx, "deltaY": dy},
+                             input_event=True)
 
 
 async def viewport(page, frame=None):
@@ -281,9 +263,6 @@ async def frame_offset(page, frame: str) -> tuple[float, float]:
 
 
 async def scroll_wheel(page, distance: float, vertical: bool, humanize: bool, point=None, frame=None, element=None):
-    from pydoll.constants import ScrollPosition
-    from pydoll.interactions.scroll import Scroll
-
     mouse = page.input.mouse
     scripted = await page.hidden()
     if point is None:
@@ -301,12 +280,11 @@ async def scroll_wheel(page, distance: float, vertical: bool, humanize: bool, po
     if distance == 0:
         return
     if humanize:
-        position = (ScrollPosition.DOWN if distance > 0 else ScrollPosition.UP) if vertical else (ScrollPosition.RIGHT if distance > 0 else ScrollPosition.LEFT)
-        await Scroll(ScrollDriver(page, point, frame or page.main_frame, scripted, element)).by(position, abs(distance), humanize=True)
+        driver = ScrollDriver(page, point, frame or page.main_frame, scripted, element)
+        await human.scroll(driver.wheel, abs(distance), vertical, 1 if distance > 0 else -1)
         return
     if scripted:
-        await ScrollDriver(page, point, frame or page.main_frame, True, element)._execute_command({
-            "method": "Input.dispatchMouseEvent", "params": {"type": "mouseWheel", "deltaX": 0 if vertical else int(distance), "deltaY": int(distance) if vertical else 0}})
+        await ScrollDriver(page, point, frame or page.main_frame, True, element).wheel(0 if vertical else int(distance), int(distance) if vertical else 0)
         return
     await page.send("Input.dispatchMouseEvent", {
         "type": "mouseWheel", "x": int(point[0]), "y": int(point[1]),
