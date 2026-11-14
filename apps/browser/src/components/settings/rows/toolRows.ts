@@ -221,6 +221,11 @@ export const toolRows = {
       rows: {
         chromium: { advanced: true, title: "Chromium", keywords: ["engine", "version", "ardiacore"] },
         widevine: { advanced: true, title: "Widevine (protected video)", keywords: ["drm", "netflix", "disney"] },
+        chromeSettings: {
+          title: "Chrome settings",
+          description: "Chrome's own settings page, for what Ardia has no setting for: default page zoom, font sizes, languages and accessibility.",
+          keywords: ["chrome://settings", "zoom", "page zoom", "font", "font size", "fonts", "accessibility", "languages", "default zoom"],
+        },
       },
     },
     {

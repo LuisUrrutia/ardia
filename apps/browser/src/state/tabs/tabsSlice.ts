@@ -73,7 +73,7 @@ export const createTabsSlice: StateCreator<BrowserState, [], [], TabsSlice> = (s
       }
       return get().newTab(main, { ...options, profileId, index: undefined });
     }
-    if (options?.url && !options.adoptId && openOutsideTab(get(), resolveTyped(get().settings, options.url), windowId)) return "";
+    if (options?.url && !options.adoptId && !options.enginePage && openOutsideTab(get(), resolveTyped(get().settings, options.url), windowId)) return "";
     if (options?.url && !options.adoptId && !options.gated && isGatedUrl(options.url)) {
       const profileId = options.profileId ?? get().windows[windowId]?.profileId ?? null;
       const gated = gateOpening(options.url, { tabId: null, windowId, profileId, via: "newTab" }, null);
