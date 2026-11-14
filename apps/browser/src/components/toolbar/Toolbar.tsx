@@ -33,6 +33,7 @@ import { ZoomIndicator } from "../site/ZoomControls";
 import { useShortcutHint, withShortcut } from "../../state/commands/commandShortcuts";
 import { buttonMotion, curve, usePressScaleMotion } from "../ui/motion";
 import { FieldLoadFill } from "./FieldLoadFill";
+import { fieldButtonsShown } from "./fieldButtons";
 import { HistoryButton, ReloadButton } from "./NavButtons";
 import { FIELD_LOAD, TOOLBAR_MOTION } from "./tokens";
 import { useToolbarRow } from "./useToolbarRow";
@@ -161,6 +162,7 @@ function useUrlField(tab: ToolbarTab, windowId: string, onFocus: () => void) {
   const popover = usePages((p) => p.popover[tab.id] ?? null);
   const { hovered: pointerOver, hoverProps } = useHover();
   const hovered = pointerOver || popover === "siteControls";
+  const buttonsShown = fieldButtonsShown(useSettings((s) => s.addressBarButtons), hovered);
   const openPanel = () => {
     onFocus();
     openWindowPanel(windowId, tab.url);
@@ -169,7 +171,7 @@ function useUrlField(tab: ToolbarTab, windowId: string, onFocus: () => void) {
     onFocus();
     togglePopover(tab.id, "siteControls");
   };
-  return { insecure, popover, hovered, hoverProps, openPanel, toggleSiteControls, host: pageHostLabel(tab.url), trail: urlTrail(tab.url, tab.title, { hovered, showFullUrl }) };
+  return { insecure, popover, hovered, buttonsShown, hoverProps, openPanel, toggleSiteControls, host: pageHostLabel(tab.url), trail: urlTrail(tab.url, tab.title, { hovered, showFullUrl }) };
 }
 
 const loadFillColor = (palette: ToolbarPalette, accent: string) =>
@@ -182,7 +184,7 @@ export const ToolbarUrlField = memo(function ToolbarUrlField({ tab, palette, win
   const row = useToolbarRow();
   const splitHint = useShortcutHint("openSplitPane");
   const field = useUrlField(tab, windowId, onFocus);
-  const { insecure, hovered, popover, toggleSiteControls } = field;
+  const { insecure, hovered, buttonsShown, popover, toggleSiteControls } = field;
   const glass = useGlass();
   const lockPress = usePressScaleMotion(!!insecure, buttonMotion.iconPressScale);
   const lockScaleStyle = lockPress.scale ? { transform: [{ scale: lockPress.scale }] } : undefined;
@@ -222,7 +224,7 @@ export const ToolbarUrlField = memo(function ToolbarUrlField({ tab, palette, win
         </Pressable>
       </ContextMenuArea>
       <FieldButtons tab={tab} palette={palette} onFocus={onFocus} popover={popover} toggleSiteControls={toggleSiteControls}>
-        {hovered && (
+        {buttonsShown && (
           <>
             <PageButton tab={tab} palette={palette} windowId={windowId} />
             {!inSplit && (
@@ -271,7 +273,7 @@ export const SidebarUrlField = memo(function SidebarUrlField({ tab, palette, win
       </ContextMenuArea>
       <ToolbarRowContext.Provider value={TOOLBAR_ROWS.regular}>
         <FieldButtons tab={tab} palette={palette} onFocus={onFocus} popover={popover} toggleSiteControls={toggleSiteControls} accessory={accessory}>
-          {hovered && <PageButton tab={tab} palette={palette} windowId={windowId} />}
+          {field.buttonsShown && <PageButton tab={tab} palette={palette} windowId={windowId} />}
         </FieldButtons>
       </ToolbarRowContext.Provider>
     </View>
