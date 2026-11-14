@@ -39,6 +39,7 @@ import { airTrafficSnapshot, takeAirTrafficCounts } from "./airTrafficCounts";
 import { takeCliCounts } from "./cliCounts";
 import { keptTabsAdded } from "./keptTabs";
 import { takeTabStripCounts } from "./tabStripCounts";
+import { takeBookmarkletCounts } from "./bookmarkletCounts";
 
 const HOUR_MS = 60 * 60_000;
 const FIRST_MEMORY_SAMPLE_MS = 10 * 60_000;
@@ -51,10 +52,10 @@ const NO_COUNTS = { tabs: 0, windows: 0, fullScreens: 0, sidebarPeeks: 0, sideba
 let counts = { ...NO_COUNTS }, countsSince = Date.now();
 
 function emitCounts() {
-  const snapshots = takeSnapshotWrites(), tornOffKept = takeTornOffWindowsKeptAutoHide(), switcherOpensInWebKit = takeTabSwitcherOpensInWebKit(), stuckDrags = takeStuckDragCounts(), urlCopies = takeUrlCopyCounts(), configProblemToasts = takeConfigProblemToastCounts(), stripHoverCards = takeStripHoverCardCounts(), externalAppRequests = takeExternalAppRequests(), tabSleeps = takeTabSleepCounts(), syncCodes = takeSyncCodeCounts(), escapeCloses = takeLittleArdiaEscapeCloses(), liveCompletedTabsClosed = takeLiveCompletedTabsClosed(), liveHides = takeLiveHideCounts(), tidyTabs = takeTidyTabsCounts(), webKitFaults = takeWebKitMediaFaultCounts(), airTraffic = takeAirTrafficCounts(), cliCounts = takeCliCounts(), tabStrip = takeTabStripCounts();
+  const snapshots = takeSnapshotWrites(), tornOffKept = takeTornOffWindowsKeptAutoHide(), switcherOpensInWebKit = takeTabSwitcherOpensInWebKit(), stuckDrags = takeStuckDragCounts(), urlCopies = takeUrlCopyCounts(), configProblemToasts = takeConfigProblemToastCounts(), stripHoverCards = takeStripHoverCardCounts(), externalAppRequests = takeExternalAppRequests(), tabSleeps = takeTabSleepCounts(), syncCodes = takeSyncCodeCounts(), escapeCloses = takeLittleArdiaEscapeCloses(), liveCompletedTabsClosed = takeLiveCompletedTabsClosed(), liveHides = takeLiveHideCounts(), tidyTabs = takeTidyTabsCounts(), webKitFaults = takeWebKitMediaFaultCounts(), airTraffic = takeAirTrafficCounts(), cliCounts = takeCliCounts(), tabStrip = takeTabStripCounts(), bookmarklets = takeBookmarkletCounts();
   const { nothingPlaying: autoPictureInPictureNothingPlaying, backToTab, clickSkips } = takePictureInPictureCounts();
   counts.autoHideTabsToggles += takeAutoHideTabsChoices();
-  if (Object.values(counts).some(Boolean) || tornOffKept > 0 || Object.values(tabSleeps).some(Boolean) || Object.values(syncCodes).some(Boolean) || Object.values(stuckDrags).some(Boolean) || Object.values(escapeCloses).some(Boolean) || Object.values(liveHides).some(Boolean) || Object.values(tidyTabs).some(Boolean) || Object.values(tabStrip).some(Boolean) || Object.keys(webKitFaults).length || Object.values(airTraffic).some(Boolean) || Object.values(cliCounts).some(Boolean) || Object.values(externalAppRequests).some(Boolean) || urlCopies.url_copies || configProblemToasts.config_problem_toasts || configProblemToasts.config_problem_toast_dismissals || stripHoverCards.tab_strip_hover_cards || liveCompletedTabsClosed || snapshots.count || switcherOpensInWebKit || autoPictureInPictureNothingPlaying || backToTab.chromium || backToTab.webkit || clickSkips.back || clickSkips.ahead) {
+  if (Object.values(counts).some(Boolean) || tornOffKept > 0 || Object.values(tabSleeps).some(Boolean) || Object.values(syncCodes).some(Boolean) || Object.values(stuckDrags).some(Boolean) || Object.values(escapeCloses).some(Boolean) || Object.values(liveHides).some(Boolean) || Object.values(tidyTabs).some(Boolean) || Object.values(tabStrip).some(Boolean) || Object.values(bookmarklets).some(Boolean) || Object.keys(webKitFaults).length || Object.values(airTraffic).some(Boolean) || Object.values(cliCounts).some(Boolean) || Object.values(externalAppRequests).some(Boolean) || urlCopies.url_copies || configProblemToasts.config_problem_toasts || configProblemToasts.config_problem_toast_dismissals || stripHoverCards.tab_strip_hover_cards || liveCompletedTabsClosed || snapshots.count || switcherOpensInWebKit || autoPictureInPictureNothingPlaying || backToTab.chromium || backToTab.webkit || clickSkips.back || clickSkips.ahead) {
     capture("usage_counts", {
       tabs_opened: counts.tabs,
       windows_opened: counts.windows,
@@ -73,6 +74,7 @@ function emitCounts() {
       reopened_pages_with_back: counts.reopenedPagesWithBack, back_closes_to_opener: counts.backClosesToOpener,
       group_tabs_kept: counts.groupTabsKept,
       group_header_hides: counts.groupHeaderHides,
+      ...bookmarklets,
       sidebar_motion_merges: counts.sidebarMotionMerges,
       peek_pinch_opens: counts.peekPinchOpens, peek_pinch_closes: counts.peekPinchCloses,
       little_ardia_pinch_opens: counts.littleArdiaPinchOpens, little_ardia_pinch_closes: counts.littleArdiaPinchCloses, ...escapeCloses, little_ardia_swipe_closes: counts.littleArdiaSwipeCloses, little_ardia_swipe_close_cancels: counts.littleArdiaSwipeCloseCancels, external_links_tab_setting_off: counts.externalLinksTabSettingOff, external_links_tab_setting_on: counts.externalLinksTabSettingOn, external_links_little_setting_on: counts.externalLinksLittleSettingOn, external_links_little_setting_off: counts.externalLinksLittleSettingOff,
