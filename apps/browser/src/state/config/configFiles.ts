@@ -5,6 +5,7 @@ import { mergedPalettes, parseThemeFile, type RolePalettes, type ThemeRoles } fr
 import { DEFAULT_LOOK, resolveLook, withSidebarText, type LookBlocks, type SidebarTextSize } from "../../lib/themeLook";
 import { setActiveLook } from "../../lib/activeLook";
 import { withoutOutlines } from "./elementOutlines";
+import { withTabCorners } from "../../lib/tabCorners";
 import { minimalismLookOf } from "../../lib/minimalismLook";
 import { useBrowser } from "../browser/store";
 import { hideKeyedToast, showToast, useToasts } from "../app/toasts";
@@ -37,6 +38,7 @@ let appliedSidebarText: SidebarTextSize = "default";
 let stopWatchingSidebarText: (() => void) | null = null;
 let revision = 0;
 let outlines = true;
+let tabCorners: number | null = null;
 let minimalism = false;
 let stopWatchingMinimalism: (() => void) | undefined;
 let windowsUp = false;
@@ -83,14 +85,16 @@ function applyTheme(next: Theme) {
   const size = sidebarTextSize();
   const minimal = useBrowser.getState().settings.minimalismMode;
   const outlined = useBrowser.getState().settings.elementOutlines;
-  if (next.name === theme.name && size === appliedSidebarText && minimal === minimalism && outlined === outlines && JSON.stringify([next.roles, next.look]) === JSON.stringify([theme.roles, theme.look])) return;
+  const corners = useBrowser.getState().settings.tabCornerRadius;
+  if (next.name === theme.name && size === appliedSidebarText && minimal === minimalism && outlined === outlines && corners === tabCorners && JSON.stringify([next.roles, next.look]) === JSON.stringify([theme.roles, theme.look])) return;
   const before = useBasePalette.getState().look;
   const resolved = resolveLook(next.look);
-  const look = withSidebarText(minimal ? minimalismLookOf(resolved) : resolved, size);
+  const look = withTabCorners(withSidebarText(minimal ? minimalismLookOf(resolved) : resolved, size), corners);
   theme = next;
   appliedSidebarText = size;
   minimalism = minimal;
   outlines = outlined;
+  tabCorners = corners;
   revision += 1;
   setActiveLook(look);
   const roles = outlined ? next.roles : withoutOutlines(next.roles);
@@ -234,6 +238,7 @@ export function startConfigFiles(roles: RolePalettes) {
     if (s.settings.sidebarTextSize !== prev.settings.sidebarTextSize) applyTheme(theme);
   });
   unsubscribers.push(useBrowser.subscribe((s, prev) => s.settings.elementOutlines !== prev.settings.elementOutlines && applyTheme(theme)));
+  unsubscribers.push(useBrowser.subscribe((s, prev) => s.settings.tabCornerRadius !== prev.settings.tabCornerRadius && applyTheme(theme)));
   stopWatchingMinimalism = useBrowser.subscribe((s, prev) => {
     if (s.settings.minimalismMode !== prev.settings.minimalismMode) applyTheme(theme);
   });
@@ -253,6 +258,7 @@ export function resetConfigFilesForTests() {
   stopWatchingMinimalism = undefined;
   minimalism = false;
   outlines = true;
+  tabCorners = null;
   timer = undefined;
   defaults = null;
   theme = { name: null, ...NO_THEME };

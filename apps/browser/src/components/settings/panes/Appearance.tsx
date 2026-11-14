@@ -10,6 +10,7 @@ import { MiniWindow } from "../MiniWindow";
 import { PictureChoice } from "../PictureChoice";
 import { AmountSlider } from "../ThemeControls";
 import { PAGE_FRAME } from "../../../lib/windowLayout";
+import { FrameSlider, TabCornersSlider } from "./FrameSlider";
 import { BookmarksBarSection } from "./BookmarksBarSection";
 import { modePreview, stylePreview } from "../tokens";
 import { useSettingsColors } from "../useSettingsColors";
@@ -191,10 +192,6 @@ function AddressBarPicker() {
   );
 }
 
-const FRAME_SLIDER_WIDTH = 160;
-const FRAME_VALUE_WIDTH = 36;
-const FRAME_CONTROL = { alignItems: "center" } as const;
-
 function PageFramePicker() {
   const frame = useSettings((s) => s.pageFrame);
   const borderless = useSettings((s) => s.borderlessMode);
@@ -208,14 +205,10 @@ function PageFramePicker() {
           <Toggle value={borderless} accessibilityLabel="Borderless mode" onChange={(on) => updateSettings({ borderlessMode: on })} />
         </Row>
         <Row anchor="appearance.pageFrame">
-          <Box row gap="m" style={FRAME_CONTROL}>
-            <View style={{ width: FRAME_SLIDER_WIDTH }}>
-              <AmountSlider value={frame / PAGE_FRAME.max} tooltip={`${frame} pt`} onChange={(v) => updateSettings({ pageFrame: Math.round(v * PAGE_FRAME.max) })} />
-            </View>
-            <Text size="small" tone="textSecondary" style={{ width: FRAME_VALUE_WIDTH, textAlign: "right" }}>
-              {frame === 0 ? "None" : `${frame} pt`}
-            </Text>
-          </Box>
+          <FrameSlider position={frame / PAGE_FRAME.max} tooltip={`${frame} pt`} label={frame === 0 ? "None" : `${frame} pt`} onChange={(v) => updateSettings({ pageFrame: Math.round(v * PAGE_FRAME.max) })} />
+        </Row>
+        <Row anchor="appearance.tabCornerRadius">
+          <TabCornersSlider />
         </Row>
         <Row anchor="appearance.pageFrameZeroInFullScreen">
           <Toggle
