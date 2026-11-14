@@ -74,6 +74,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "How many closed tabs and windows you reopened came back with their Back history, and how many Dock icon clicks brought a browser window forward, including those made while a floating video was in front, summed up once an hour",
       "How many times the \"New tab opened\" pill appeared after a link opened in the background, and how many times it was clicked, and how many link addresses showed at the top of the page because the pointer was near its bottom edge, summed up once an hour. Never which link or tab",
       "How many times ⌘T kept a New Tab bar that had opened on its own (in a new window or after closing the last tab) instead of closing it, summed up once an hour",
+      "How many times switching from a New Tab to a page kept the New Tab up behind it while the page drew, and how many switches went to a page on WebKit, which shows at once without it, summed up once an hour. Never which page",
       "With address bar speed: how many search suggestion requests your search engine answered, refused as unusual traffic, or failed, summed up once an hour. Never what you typed or which engine",
       "How many times you switched the update channel, and whether the check that follows offered an update, found you up to date or failed, summed up once an hour. Never which version",
       "How many times ⌥↩ in the command bar opened a split pane, and how many times the split was already full so it opened a background tab instead, summed up once an hour. Never which pages",
