@@ -122,7 +122,7 @@ class BrowseEndToEnd(unittest.TestCase):
 
     def test_core_loop(self):
         opened = self.browse("open", self.url("login.html"), "--show").stdout
-        self.assertEqual(opened, f"✓ Fixture Login\n  {self.url('login.html')}\n")
+        self.assertTrue(opened.startswith(f"✓ Fixture Login\n  {self.url('login.html')}\nchanges:\nnew document"), opened)
         snap = self.browse("snapshot", "-i").stdout
         self.assertIn('heading "Log in" [level=1, ref=', snap)
         email = ref_for(snap, 'textbox "Email"')
