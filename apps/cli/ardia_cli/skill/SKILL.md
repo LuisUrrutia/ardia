@@ -29,8 +29,7 @@ ardia browse batch "tab active" "snapshot -i"  # the user's own page
 - A long or scroll-loaded list (`1–40 of 200`): `read --scroll` (the main list, or `-s <list>`; `--match <text>`).
 - Blocked, CAPTCHA or 429 (`read` says so): wait 30–60 s, retry, click a captcha checkbox once, then use the
   site's own search and pages, or another source.
-- Find a control with `find role button --name Save` or `snapshot -i -s <sel>`. Read pages with `read`, not
-  `snapshot --full` or `curl`.
+- Find a control with `find role button --name Save` or `snapshot -i -s <sel>`. Read pages with `read`, not `curl`.
 
 ## Act
 
@@ -80,9 +79,9 @@ EOF
 ## Finish
 
 - Scope first: the page's own total (`1,420 results`), every page, tab, category and `Load more`. Before answering,
-  compare your rows with it; name what's missing and why. Save each batch: partial data beats none.
+  compare your rows with it; name what's missing and why. Save each batch; partial beats none.
 - Every value comes from output this session showed or saved: never retype rows or fill gaps from memory; mark the
-  rest `unverified`. A search snippet is a pointer: cite and date only pages you read.
+  rest `unverified`. Snippets are pointers: cite and date only pages you read.
 - Answer in the shape asked; files you name must exist. Recheck each total, URL, time and status against the output.
 
 ## Memory
