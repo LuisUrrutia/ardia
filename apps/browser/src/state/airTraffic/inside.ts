@@ -29,7 +29,7 @@ function alreadyThere(s: World, rule: AirTrafficRule, placed: InsidePlacement, f
 
 export function placeInside(s: World, config: AirTrafficConfig, url: string, from: InsideSource, asTab = false): InsidePlacement | null {
   const w = from.windowId ? s.windows[from.windowId] : undefined;
-  if (w?.kind === "private" || isIncognitoProfile(from.profileId) || !s.profiles[from.profileId]) return null;
+  if (w?.kind === "private" || isIncognitoProfile(from.profileId) || !s.profiles[from.profileId] || !/^https?:\/\//i.test(url)) return null;
   const rule = insideRules(s, config).find((r) => linkMatches(r.when, url));
   if (!rule) return null;
   const placed: InsidePlacement = { profileId: rule.profileId ?? from.profileId, open: asTab ? "tab" : rule.open, groupKey: rule.groupKey ?? null };

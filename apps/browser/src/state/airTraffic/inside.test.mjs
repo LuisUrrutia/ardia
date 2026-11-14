@@ -73,6 +73,15 @@ test("a link already where its rule sends it isn't placed: its own profile as a 
   assert.equal(place({ profileId: work }, { profileId: S().windows[priv].profileId, windowId: priv }), null);
 });
 
+test("only web addresses are placed, so an any-link rule leaves javascript:, file: and Ardia's own pages alone", () => {
+  const { work, w, source, personal } = fresh([(wk) => rule({ profileId: wk })]);
+  const from = { profileId: personal, windowId: w, tabId: source };
+  assert.deepEqual(placeInside(S(), store.currentAirTraffic(), "https://any.example/", from), { profileId: work, open: "tab", groupKey: null });
+  for (const url of ["javascript:alert(1)", "file:///etc/hosts", "ardia://settings", "about:blank", "data:text/html,x"]) {
+    assert.equal(placeInside(S(), store.currentAirTraffic(), url, from), null, url);
+  }
+});
+
 test("a routed click opens at its rule's destination and leaves the page; ⌘ opens a background tab there; a link no rule takes opens as it would have", async () => {
   const { work, w, source } = fresh([(wk) => rule({ when: site("example.net"), profileId: wk })]);
   const page = { windowId: w, tabId: source, profileId: S().tabs[source].profileId };
