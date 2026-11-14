@@ -535,3 +535,18 @@ test("a sign-in page opens in a regular window, never in a Little Ardia window t
   assert.equal(useBrowser.getState().windows[little].kind, "small");
   assert.equal(settingsBrowserWindow(profile), regular);
 });
+
+test("a profile created after the move first failed to read the old keychain item isn't given the old account on a retry", async () => {
+  const before = useBrowser.getState().createProfile({ name: "Before" });
+  keychainItems.delete("notion");
+  setLegacyAccount("notion", legacyAccount("Acme"));
+  await adoptLegacyAccounts([before]);
+  const after = useBrowser.getState().createProfile({ name: "After" });
+  keychainItems.set("notion", "legacy-notion-token");
+
+  await adoptLegacyAccounts([before, after]);
+
+  assert.equal(live().accounts[before].notion.login, "Acme");
+  assert.equal(live().accounts[after]?.notion, undefined);
+  assert.equal(keychainItems.has(`notion:${after}`), false);
+});

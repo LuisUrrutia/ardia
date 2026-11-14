@@ -359,6 +359,7 @@ function copyLegacy(source: LiveSourceId, profileId: string, value: string, lega
 
 async function adopt(profileIds: string[]) {
   for (const source of Object.keys(live().legacyAccounts) as LiveSourceId[]) {
+    if (!live().legacyAccounts[source]!.owedTo) setLegacyAccount(source, { ...live().legacyAccounts[source]!, owedTo: profileIds });
     const record = live().legacyAccounts[source]!;
     const saved = await getSecret(source, null);
     if (!saved) {
