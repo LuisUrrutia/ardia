@@ -638,6 +638,16 @@ class BrowseEndToEnd(unittest.TestCase):
         self.assertIn("can't take focus", hidden.stderr)
         self.assertNotIn("DOM.focus", hidden.stderr)
 
+    def test_a_ref_from_before_a_navigation_says_so_and_names_its_match(self):
+        session = "navigated-ref"
+        self.browse("open", self.url("focus.html"), session=session)
+        old = ref_for(self.browse("snapshot", "-i", session=session).stdout, 'textbox "Search"')
+        self.browse("open", self.url("focus.html?again=1"), session=session)
+        stale = self.browse("fill", old, "bento", session=session, check=False)
+        self.assertNotEqual(stale.returncode, 0)
+        self.assertIn("the page navigated since that snapshot", stale.stderr)
+        self.assertIn('the same textbox "Search" as @e', stale.stderr)
+
     def test_open_returns_a_page_whose_load_never_ends_with_a_note(self):
         import socket
 
