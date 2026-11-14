@@ -47,6 +47,7 @@ const TOP = [
   ["keyboard shortcuts", ["shortcuts.actions"]],
   ["hotkeys", ["shortcuts.actions", "shortcuts.extensionShortcuts"]],
   ["⌘L", ["appearance.commandBarPlacement"]],
+  ["shrink", ["tabs.hideToolbarWhileScrolling"]],
   ["⌘z", ["shortcuts.undoReopensClosedTab"]],
   ["update", ["general.updateChannel", "general.autoUpdate"]],
   ["nightly", ["general.updateChannel"]],
