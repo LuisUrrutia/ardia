@@ -35,6 +35,7 @@ export type NowPlaying = {
   hasVideo: boolean;
   actions: string[];
   controllable: boolean;
+  loop?: boolean;
 };
 export type MediaCommand = "play" | "pause" | "toggle" | "next" | "previous" | "seekBy" | "seekTo" | "stop";
 export type MediaAccess = { camera: boolean; microphone: boolean; screen: boolean };

@@ -1,10 +1,10 @@
 import { Dot, Panel, Symbol, Button, tabularNums, Text, useHover } from "../ui";
 import { useShallow } from "zustand/react/shallow";
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Animated, Image, Pressable, View } from "react-native";
 import { switchToTab, toggleMute } from "../../state/browser/actions";
 import { useTheme } from "../ui/theme";
-import { curve, duration } from "../ui/motion";
+import { curve } from "../ui/motion";
 import { font, radius, space, weight } from "../ui/tokens";
 import { useTab } from "../../state/browser/hooks";
 import { useMuteState } from "../../state/tabs/hooks";
@@ -13,6 +13,7 @@ import { Favicon } from "../favicon/Favicon";
 import { useSidebarTokens } from "../sidebar/tokens";
 import { GlassFill, useGlass } from "../ui/Glass";
 import { useArtwork } from "../../state/media/artwork";
+import { noteSidebarPlayerExpand } from "../../state/telemetry/mediaCardCounts";
 import {
   dismissPlayer,
   formatTime,
@@ -42,16 +43,38 @@ const LIVE_DOT = 6;
 const BUTTON = 24;
 const TITLE_HEIGHT = 16;
 const ARTIST_HEIGHT = 14;
+const TITLE_DROP = ARTIST_HEIGHT / 2;
 const SEEK_ROW = 18;
 const CONTROLS_ROW = 32;
 const CONTROLS_GAP = space.s;
+const CONTROLS_LIFT = space.s;
 const EXPANDED_BOTTOM = space.xs;
 const EXPANDED_HEIGHT = ROW_HEIGHT + SEEK_ROW + CONTROLS_ROW + EXPANDED_BOTTOM;
-const EXPAND_DELAY_MS = 250;
+const GROWTH = EXPANDED_HEIGHT - ROW_HEIGHT;
+const HOVER_SLOP = space.m;
+const EXPAND_MS = 220;
+const COLLAPSE_MS = 180;
 const COLLAPSE_DELAY_MS = 160;
 const MARQUEE_PASSES_AT_REST = 1;
 
 export const SIDEBAR_PLAYER_HEIGHT = ROW_HEIGHT + 8;
+
+export type PlayerMotion = {
+  progress: Animated.Value;
+  overhang: Animated.Value;
+  listClip: Animated.AnimatedMultiplication<number>;
+  listUnclip: Animated.AnimatedMultiplication<number>;
+};
+
+export function usePlayerMotion(): PlayerMotion {
+  const [motion] = useState(() => {
+    const progress = new Animated.Value(0);
+    const overhang = new Animated.Value(1);
+    const listClip = Animated.multiply(progress.interpolate({ inputRange: [0, 1], outputRange: [0, -GROWTH] }), overhang);
+    return { progress, overhang, listClip, listUnclip: Animated.multiply(listClip, -1) };
+  });
+  return motion;
+}
 
 export function useSidebarPlayerTab(windowId: string, profileId: string): string | undefined {
   const sessions = useMedia(useShallow((m) => Object.keys(m.sessions)));
@@ -64,23 +87,41 @@ export function useSidebarPlayerTab(windowId: string, profileId: string): string
 
 const isLive = (session: Session) => session.duration === null;
 
-function useExpanded(hovered: boolean, held: boolean) {
-  const want = hovered || held;
+function useExpansion(want: boolean, motion: PlayerMotion) {
   const [expanded, setExpanded] = useState(false);
+  const [slot, setSlot] = useState<"row" | "expanded">("row");
   useEffect(() => {
     if (want === expanded) return;
-    const timer = setTimeout(() => setExpanded(want), want ? EXPAND_DELAY_MS : COLLAPSE_DELAY_MS);
+    if (want) return setExpanded(true);
+    const timer = setTimeout(() => setExpanded(false), COLLAPSE_DELAY_MS);
     return () => clearTimeout(timer);
   }, [want, expanded]);
-  const reveal = useRef(new Animated.Value(0)).current;
-  const [mounted, setMounted] = useState(false);
   useEffect(() => {
-    if (expanded) setMounted(true);
-    const run = Animated.timing(reveal, { toValue: expanded ? 1 : 0, duration: duration.base, easing: curve.enter, useNativeDriver: false });
-    run.start(({ finished }) => finished && !expanded && setMounted(false));
-    return () => run.stop();
+    if (expanded) noteSidebarPlayerExpand();
   }, [expanded]);
-  return { expanded, mounted: want || mounted, reveal };
+  useLayoutEffect(() => {
+    if (slot === "expanded") {
+      if (expanded) return void motion.overhang.setValue(0);
+      return setSlot("row");
+    }
+    motion.overhang.setValue(1);
+    const run = Animated.timing(motion.progress, {
+      toValue: expanded ? 1 : 0,
+      duration: expanded ? EXPAND_MS : COLLAPSE_MS,
+      easing: curve.fade,
+      useNativeDriver: true,
+    });
+    run.start(({ finished }) => finished && expanded && setSlot("expanded"));
+    return () => run.stop();
+  }, [expanded, slot]);
+  useLayoutEffect(
+    () => () => {
+      motion.progress.setValue(0);
+      motion.overhang.setValue(1);
+    },
+    [],
+  );
+  return { expanded, slot };
 }
 
 function PlayButton({ tabId, playing, size }: { tabId: string; playing: boolean; size: "m" | "l" }) {
@@ -100,22 +141,22 @@ function TimeLeft({ session }: { session: Session }) {
   );
 }
 
-const PlayerControls = memo(function PlayerControls({ tabId, reveal, onSeeking }: { tabId: string; reveal: Animated.Value; onSeeking: (seeking: boolean) => void }) {
+const PlayerControls = memo(function PlayerControls({ tabId, live, reveal, onSeeking }: { tabId: string; live: boolean; reveal: Reveal; onSeeking: (seeking: boolean) => void }) {
   const media = useMediaTokens();
   const session = useSession(tabId);
   const mute = useMuteState(tabId);
   const playing = isPlaying(session);
   const video = useMedia((m) => !!m.sessions[tabId]?.hasVideo || !!m.pipOpen[tabId]);
   const [pip, togglePip] = usePictureInPicture(tabId);
-  useTicker(playing);
+  useTicker(playing && live);
   if (!session) return null;
   const icons = transportIcons(session);
   return (
-    <Animated.View style={{ opacity: reveal, paddingHorizontal: ROW_INSET + 2 }}>
-      <View style={{ height: SEEK_ROW }}>
+    <View style={{ paddingHorizontal: ROW_INSET + 2 }}>
+      <Animated.View style={{ height: SEEK_ROW, opacity: reveal.seek }}>
         <TimeBar tabId={tabId} session={session} tokens={media} trailing="total" onDragging={onSeeking} />
-      </View>
-      <View style={{ height: CONTROLS_ROW, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+      </Animated.View>
+      <Animated.View style={{ height: CONTROLS_ROW, flexDirection: "row", alignItems: "center", justifyContent: "space-between", opacity: reveal.controls }}>
         <Button variant="icon" icon={mute ? "speaker.slash.fill" : "speaker.wave.2.fill"} size="m" tooltip={muteTitle(mute)} onPress={() => toggleMute(tabId)} />
         <View style={{ flexDirection: "row", alignItems: "center", gap: CONTROLS_GAP }}>
           <Button variant="icon" icon={icons.back} size="m" tooltip={icons.backTip} onPress={() => skipOrTrack(tabId, session, "back")} />
@@ -127,19 +168,20 @@ const PlayerControls = memo(function PlayerControls({ tabId, reveal, onSeeking }
         ) : (
           <View style={{ width: BUTTON }} />
         )}
-      </View>
-    </Animated.View>
+      </Animated.View>
+    </View>
   );
 });
 
-const PlayerRow = memo(function PlayerRow({ tabId, mounted, hovered, reveal }: { tabId: string; mounted: boolean; hovered: boolean; reveal: Animated.Value }) {
+type Reveal = ReturnType<typeof useReveal>;
+
+const PlayerRow = memo(function PlayerRow({ tabId, hovered, reveal }: { tabId: string; hovered: boolean; reveal: Reveal }) {
   const theme = useTheme();
   const media = useMediaTokens();
   const session = useSession(tabId);
   const tab = useTab(tabId);
   const mute = useMuteState(tabId);
   const artwork = useArtwork(tabId, session?.artwork);
-  const artistHeight = useMemo(() => reveal.interpolate({ inputRange: [0, 1], outputRange: [0, ARTIST_HEIGHT] }), [reveal]);
   const title = session?.title || tab?.title || "";
   const artist = session?.artist || (tab ? hostOf(tab.url) : "");
   const marquee = useMarqueeGroup(`${title}|${artist}`, hovered ? -1 : MARQUEE_PASSES_AT_REST);
@@ -155,58 +197,85 @@ const PlayerRow = memo(function PlayerRow({ tabId, mounted, hovered, reveal }: {
         </View>
       ) : null}
       {mute ? <Symbol name="speaker.slash.fill" size={9} color={theme.textSecondary} style={{ width: 13, height: 12, marginLeft: space.s }} /> : null}
-      <View style={{ flex: 1, minWidth: 0, marginLeft: space.s }}>
+      <Animated.View style={{ flex: 1, minWidth: 0, marginLeft: space.s, transform: artist ? [{ translateY: reveal.titleDrop }] : undefined }}>
         <Marquee id="title" text={title} group={marquee} height={TITLE_HEIGHT} style={{ ...font.small, fontWeight: weight.semibold, color: theme.textPrimary }} />
-        {mounted && artist ? (
-          <Animated.View style={{ height: artistHeight, opacity: reveal, overflow: "hidden" }}>
+        {artist ? (
+          <Animated.View style={{ height: ARTIST_HEIGHT, opacity: reveal.artist }}>
             <Marquee id="artist" text={artist} group={marquee} height={ARTIST_HEIGHT} style={{ ...font.caption, color: theme.textSecondary }} />
           </Animated.View>
         ) : null}
-      </View>
+      </Animated.View>
     </Pressable>
   );
 });
 
-export function SidebarPlayer({ tabId }: { tabId: string }) {
+function useReveal(progress: Animated.Value) {
+  const [reveal] = useState(() => ({
+    mask: progress.interpolate({ inputRange: [0, 1], outputRange: [GROWTH, 0] }),
+    unmask: progress.interpolate({ inputRange: [0, 1], outputRange: [-GROWTH, 0] }),
+    titleDrop: progress.interpolate({ inputRange: [0, 1], outputRange: [TITLE_DROP, 0] }),
+    artist: progress.interpolate({ inputRange: [0.3, 1], outputRange: [0, 1], extrapolate: "clamp" }),
+    seek: progress.interpolate({ inputRange: [0.7, 1], outputRange: [0, 1], extrapolate: "clamp" }),
+    controls: progress.interpolate({ inputRange: [0.45, 1], outputRange: [0, 1], extrapolate: "clamp" }),
+    controlsLift: progress.interpolate({ inputRange: [0, 1], outputRange: [-GROWTH + CONTROLS_LIFT, 0] }),
+    resting: progress.interpolate({ inputRange: [0, 0.5], outputRange: [1, 0], extrapolate: "clamp" }),
+    closing: progress.interpolate({ inputRange: [0.5, 1], outputRange: [0, 1], extrapolate: "clamp" }),
+  }));
+  return reveal;
+}
+
+export function SidebarPlayer({ tabId, motion, docked }: { tabId: string; motion: PlayerMotion; docked: boolean }) {
   const tokens = useSidebarTokens();
   const session = useSession(tabId);
   const shown = useTab(tabId) !== undefined;
   const playing = isPlaying(session);
   const { hovered, hoverProps } = useHover();
   const [seeking, setSeeking] = useState(false);
-  const { expanded, mounted, reveal } = useExpanded(hovered, seeking);
-  const height = useMemo(() => reveal.interpolate({ inputRange: [0, 1], outputRange: [ROW_HEIGHT, EXPANDED_HEIGHT] }), [reveal]);
+  const want = hovered || seeking;
+  const { expanded, slot } = useExpansion(want, motion);
+  const reveal = useReveal(motion.progress);
   const glass = useGlass();
   if (!session || !shown) return null;
-
-  const body = (
-    <>
-      <View style={{ height: ROW_HEIGHT, flexDirection: "row", alignItems: "center", paddingLeft: ROW_INSET, paddingRight: TRAILING_INSET }}>
-        <PlayerRow tabId={tabId} mounted={mounted} hovered={hovered} reveal={reveal} />
-        {expanded ? (
-          <Button variant="icon" icon="xmark" size="m" tooltip="Close Player" onPress={() => dismissPlayer(tabId)} />
-        ) : playing && session.duration ? (
-          <TimeLeft session={session} />
-        ) : (
-          <PlayButton tabId={tabId} playing={playing} size="m" />
-        )}
-      </View>
-      {mounted ? <PlayerControls tabId={tabId} reveal={reveal} onSeeking={setSeeking} /> : null}
-    </>
-  );
+  const below = docked ? 0 : HOVER_SLOP;
 
   return (
-    <Animated.View {...hoverProps} style={{ height }}>
-      {glass ? (
-        <View style={{ flex: 1, overflow: "hidden", borderRadius: radius.panel }}>
-          <GlassFill radius={radius.panel} state={hovered ? "lit" : "rest"} />
-          {body}
+    <View style={{ height: slot === "expanded" ? EXPANDED_HEIGHT : ROW_HEIGHT }}>
+      <View
+        {...hoverProps}
+        pointerEvents="box-none"
+        style={{ position: "absolute", left: -HOVER_SLOP, right: -HOVER_SLOP, bottom: -below, height: (expanded ? EXPANDED_HEIGHT : ROW_HEIGHT) + HOVER_SLOP + below }}
+      >
+        <View pointerEvents="box-none" style={{ position: "absolute", left: HOVER_SLOP, right: HOVER_SLOP, bottom: below, height: EXPANDED_HEIGHT }}>
+          <Animated.View pointerEvents="box-none" style={{ position: "absolute", top: 0, left: 0, right: 0, height: EXPANDED_HEIGHT, borderRadius: radius.panel, overflow: "hidden", transform: [{ translateY: reveal.mask }] }}>
+            <Animated.View pointerEvents="none" style={{ position: "absolute", top: 0, left: 0, right: 0, height: EXPANDED_HEIGHT, transform: [{ translateY: reveal.unmask }] }}>
+              {glass ? (
+                <View style={{ flex: 1, overflow: "hidden", borderRadius: radius.panel }}>
+                  <GlassFill radius={radius.panel} state={want ? "lit" : "rest"} />
+                </View>
+              ) : (
+                <Panel fill={tokens.groupFill} radius={radius.panel} border={tokens.groupStroke} style={{ flex: 1 }} />
+              )}
+            </Animated.View>
+            <Animated.View
+              pointerEvents={expanded ? "box-none" : "none"}
+              style={{ position: "absolute", top: ROW_HEIGHT, left: 0, right: 0, transform: [{ translateY: reveal.controlsLift }] }}
+            >
+              <PlayerControls tabId={tabId} live={expanded} reveal={reveal} onSeeking={setSeeking} />
+            </Animated.View>
+            <View style={{ height: ROW_HEIGHT, flexDirection: "row", alignItems: "center", paddingLeft: ROW_INSET, paddingRight: TRAILING_INSET }}>
+              <PlayerRow tabId={tabId} hovered={want} reveal={reveal} />
+              <View style={{ minWidth: BUTTON, height: BUTTON, alignItems: "flex-end", justifyContent: "center" }}>
+                <Animated.View pointerEvents={expanded ? "none" : "box-none"} style={{ opacity: reveal.resting }}>
+                  {playing && session.duration ? <TimeLeft session={session} /> : <PlayButton tabId={tabId} playing={playing} size="m" />}
+                </Animated.View>
+                <Animated.View pointerEvents={expanded ? "box-none" : "none"} style={{ position: "absolute", top: 0, right: 0, opacity: reveal.closing }}>
+                  <Button variant="icon" icon="xmark" size="m" tooltip="Close Player" onPress={() => dismissPlayer(tabId)} />
+                </Animated.View>
+              </View>
+            </View>
+          </Animated.View>
         </View>
-      ) : (
-        <Panel fill={tokens.groupFill} radius={radius.panel} border={tokens.groupStroke} style={{ flex: 1, overflow: "hidden" }}>
-          {body}
-        </Panel>
-      )}
-    </Animated.View>
+      </View>
+    </View>
   );
 }
