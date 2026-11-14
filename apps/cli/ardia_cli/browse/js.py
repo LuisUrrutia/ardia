@@ -281,8 +281,9 @@ LIBRARY = r"""
       for (const root of roots) {
         if (!api.visible(root)) continue;
         const text = (root.innerText || "").slice(0, 4000);
-        if (!about.test(text) || text.length > 3000) continue;
-        if (!root.matches(vendor) && !about.test(root.id + " " + (typeof root.className === "string" ? root.className : "") + " " + (root.getAttribute("aria-label") || "")) && !/\bcookies?\b/i.test(text)) continue;
+        const declared = /cookie|consent|gdpr|ccpa|onetrust|didomi|usercentrics|truste|osano|qc-cmp|sp_message/i.test(root.id + " " + (typeof root.className === "string" ? root.className : "") + " " + (root.getAttribute("aria-label") || ""));
+        if (text.length > 3000 || !(declared || about.test(text))) continue;
+        if (!declared && !/\bcookies?\b/i.test(text)) continue;
         for (const button of root.querySelectorAll("button, [role=button], a, input[type=button], input[type=submit]")) {
           if (!api.visible(button)) continue;
           const name = ((button.innerText || button.value || "").trim() || button.getAttribute("aria-label") || "").replace(/\s+/g, " ").trim();

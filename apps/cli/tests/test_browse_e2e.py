@@ -618,6 +618,16 @@ class BrowseEndToEnd(unittest.TestCase):
         self.assertIn('"Reject all" button was clicked (reject)', clicked)
         self.assertEqual(self.report(session), {"clicked": ["buy"], "choice": "reject"})
 
+    def test_click_dismisses_a_prompt_whose_id_names_consent(self):
+        session = "consent-id"
+        self.browse("open", self.url("consent.html"), "--show", session=session)
+        self.browse("eval", "showPrompt()", session=session)
+        said = self.browse("click", "#late-buy", session=session).stdout
+        self.assertIn('"Reject all" button was clicked (reject)', said)
+        report = self.report(session)
+        self.assertEqual(report["prompt"], "reject")
+        self.assertIn("late-buy", report["clicked"])
+
     def test_click_leaves_a_dialog_that_is_not_about_cookies_alone(self):
         session = "invite"
         self.browse("open", self.url("invite.html"), "--show", session=session)
