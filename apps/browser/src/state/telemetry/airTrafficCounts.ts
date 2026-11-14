@@ -3,8 +3,8 @@ import type { AirTrafficConfig } from "../airTraffic/rules";
 
 export type AirTrafficRouted = "rule" | "fallback" | "click" | "typed" | "group";
 
-const ROUTED: AirTrafficRouted[] = ["rule", "fallback", "click", "typed", "group"];
-const counts = Object.fromEntries(ROUTED.map((by) => [by, 0])) as Record<AirTrafficRouted, number>;
+const counts: Record<AirTrafficRouted, number> = { rule: 0, fallback: 0, click: 0, typed: 0, group: 0 };
+const ROUTED: readonly AirTrafficRouted[] = ["rule", "fallback", "click", "typed", "group"];
 
 export const noteAirTrafficLink = (by: AirTrafficRouted) => void counts[by]++;
 

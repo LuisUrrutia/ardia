@@ -63,12 +63,16 @@ export const targetUsable = (target: AirTrafficTarget, usable: TargetUsable) => 
 
 const targetOf = (target: AirTrafficTarget): AirTrafficTarget => ({ profileId: target.profileId, open: target.open, ...(target.groupKey ? { groupKey: target.groupKey } : {}) });
 
-export function cleanTarget<T extends AirTrafficTarget>(target: T): T {
-  const { groupKey, ...rest } = target;
-  return (groupKey && target.profileId !== null && target.open === "tab" ? { ...rest, groupKey } : rest) as T;
+export function cleanTarget(target: AirTrafficTarget): AirTrafficTarget {
+  const { profileId, open, groupKey } = target;
+  return groupKey && profileId !== null && open === "tab" ? { profileId, open, groupKey } : { profileId, open };
 }
 
-export const cleanRule = (rule: AirTrafficRule): AirTrafficRule => cleanTarget({ ...rule, inside: rule.inside === true && rule.from === null });
+export const cleanRule = ({ groupKey, ...rule }: AirTrafficRule): AirTrafficRule => ({
+  ...rule,
+  ...cleanTarget({ profileId: rule.profileId, open: rule.open, groupKey }),
+  inside: rule.inside === true && rule.from === null,
+});
 
 export const sameTarget = (a: AirTrafficTarget | null, b: AirTrafficTarget | null) =>
   a === b || (!!a && !!b && a.profileId === b.profileId && a.open === b.open && (a.groupKey ?? null) === (b.groupKey ?? null));
@@ -105,8 +109,8 @@ function conditionOf(v: unknown): LinkCondition | null {
 
 function targetFrom(v: unknown): AirTrafficTarget | null {
   if (!isFields(v) || !isProfileRef(v.profileId) || !isOpenAs(v.open)) return null;
-  const grouped = typeof v.groupKey === "string" && !!v.groupKey && v.profileId !== null && v.open === "tab";
-  return { profileId: v.profileId, open: v.open, ...(grouped ? { groupKey: v.groupKey as string } : {}) };
+  const groupKey = typeof v.groupKey === "string" ? v.groupKey : undefined;
+  return cleanTarget({ profileId: v.profileId, open: v.open, groupKey });
 }
 
 function ruleOf(v: unknown): AirTrafficRule | null {
