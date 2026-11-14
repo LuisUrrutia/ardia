@@ -1099,7 +1099,7 @@ async def cmd_is(ctx: Ctx, argv):
     return Result({"origin": origin + "/" if origin else origin, what: bool(value)}, "true" if value else "false")
 
 
-FIND_ACTIONS = ("click", "fill", "type", "check", "uncheck", "select", "hover", "focus", "dblclick", "text")
+FIND_ACTIONS = ("click", "fill", "type", "press", "check", "uncheck", "select", "hover", "focus", "dblclick", "text")
 FIND_LOCATORS = ("role", "text", "label", "placeholder", "alt", "title", "testid", "first", "last", "nth")
 MAX_CANDIDATES = 8
 BATCH_DEFAULT_CAP = 6000
@@ -1198,6 +1198,16 @@ async def cmd_find(ctx: Ctx, argv):
     if action == "focus":
         _, report = await changes.observe(ctx, page, lambda: page.focus_element(element))
         return changes.attach(Result({"focused": f"@{ref}"}), report)
+    if action == "press":
+        key = rest[1] if len(rest) > 1 else "Enter"
+        frame = element.frame or page.main_frame
+
+        async def focus_and_press():
+            await page.focus_element(element)
+            return await page.input.gesture("press", lambda: page.input.press_combo(key, humanize))
+
+        _, report = await changes.observe(ctx, page, lambda: actions.expect_input(page, frame, focus_and_press, {"keydown": 1}, "The key press"), (element, None))
+        return changes.attach(Result({"pressed": key, "in": f"@{ref}"}), report)
     text = await page.call("(el) => (el.innerText != null ? el.innerText : el.textContent || '').trim()", element, frame=element.frame)
     return Result({"ref": f"@{ref}", "text": text}, text, page_content=True)
 

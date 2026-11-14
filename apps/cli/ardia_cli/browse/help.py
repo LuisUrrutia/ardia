@@ -210,7 +210,8 @@ COMMANDS = {
             "--out <file> saves the whole value (JSON, or the text as is) and prints a short summary instead.",
     "get": "ardia browse get text|html|value|attr <name>|title|url|count|box|styles <sel>\n\ncdp-url works only with --port or --ws: the real URL carries Ardia's token.",
     "find": "ardia browse find <role|text|label|placeholder|alt|title|testid|first|last|nth> <value> [action] [text] [--name n] [--exact|--partial]\n\n"
-            "Actions: click (default), fill, type, check, uncheck, select, hover, focus, dblclick, text. The found element\n"
+            "Actions: click (default), fill, type, press [key] (Enter if none), check, uncheck, select, hover, focus, dblclick,\n"
+            "text. The found element\n"
             "gets the next ref, so later commands can use it.\n\n"
             "find role takes the role and accessible name the snapshot shows, in any order: `find role button\n"
             "click --name Save`, `find role button --name Save click` or `find role button Save click`. A name\n"
