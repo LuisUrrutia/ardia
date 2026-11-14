@@ -54,6 +54,7 @@ class State:
         self.pending_reaction: dict | None = None
         self.consent_dismissed: str | None = None
         self.click_note: str | None = None
+        self.load_note: str | None = None
         self.script_state: str = "{}"
         self.sessions: dict[str, Page] = {}
         self.tab_ids: dict[str, str] = {}

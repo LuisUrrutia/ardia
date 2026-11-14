@@ -123,6 +123,15 @@ async def page_title(page) -> str:
         return ""
 
 
+async def shows_content(page, loader: str) -> bool:
+    try:
+        ready = await page.call("() => [document.readyState, (document.body && document.body.innerText || '').trim().length]",
+                                frame=page.main_frame, read=True)
+    except BrowseError:
+        return False
+    return page.loader(page.main_frame) == loader and bool(ready) and ready[0] in ("interactive", "complete") and ready[1] > 0
+
+
 async def wait_for_load(page, loader: str | None, timeout: float, until: str = "load"):
     event = {"load": "load", "domcontentloaded": "DOMContentLoaded", "networkidle": "networkIdle"}.get(until, until)
 
@@ -167,8 +176,18 @@ async def navigate(ctx: Ctx, page, url: str, until: str = "load"):
     if result.get("errorText"):
         raise BrowseError(f"Navigation to {url} failed: {result['errorText']}", code="navigation_failed")
     loader = result.get("loaderId")
+    page.state.load_note = None
     if loader:
-        await wait_for_load(page, loader, ctx.timeout, until)
+        try:
+            await wait_for_load(page, loader, ctx.timeout, until)
+        except BrowseError as error:
+            if error.code != "timeout" or until != "load" or not await shows_content(page, loader):
+                raise
+            from ardia_cli import command_metrics
+
+            command_metrics.flag("open_still_loading", True)
+            page.state.load_note = (f"The page hadn't finished loading after {ctx.timeout:g} s (something on it is still loading); "
+                                    "its content so far is here, and `wait --load load` waits for the rest")
     else:
         await readpages.after_same_document(page, before, asyncio.get_running_loop().time() + ctx.timeout)
     await page.refresh_frames()
@@ -418,6 +437,10 @@ async def cmd_open(ctx: Ctx, argv):
     title = await page_title(page)
     data = {"url": page.url, "title": title}
     text = f"✓ {title}\n  {page.url}" + offscreen_note(state)
+    still_loading, state.load_note = getattr(state, "load_note", None), None
+    if still_loading:
+        data["stillLoading"] = True
+        text += f"\n{still_loading}"
     if background is not None:
         tab = state.tab_id(page.target_id)
         data.update({"tabId": tab, "background": True, "takesInput": background})

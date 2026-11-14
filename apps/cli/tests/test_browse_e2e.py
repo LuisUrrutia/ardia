@@ -628,6 +628,20 @@ class BrowseEndToEnd(unittest.TestCase):
         self.assertEqual(report["prompt"], "reject")
         self.assertIn("late-buy", report["clicked"])
 
+    def test_open_returns_a_page_whose_load_never_ends_with_a_note(self):
+        import socket
+
+        hang = socket.socket()
+        hang.bind(("127.0.0.1", 0))
+        hang.listen(8)
+        self.addCleanup(hang.close)
+        session = "stalled"
+        opened = self.browse("open", self.url(f"stalled.html?hang={hang.getsockname()[1]}"), session=session,
+                             extra_env={"AGENT_BROWSER_DEFAULT_TIMEOUT": "3000"})
+        self.assertIn("Fixture Stalled", opened.stdout)
+        self.assertIn("hadn't finished loading after 3 s", opened.stdout)
+        self.assertEqual(self.browse("get", "text", "#ready", session=session).stdout, "Three openings are listed.\n")
+
     def test_a_click_the_page_cannot_scroll_to_names_the_dialog_holding_it(self):
         session = "locked"
         self.browse("open", self.url("locked.html"), "--show", session=session)
