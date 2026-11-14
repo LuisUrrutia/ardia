@@ -29,8 +29,8 @@ ardia browse snapshot -i    # a task about the user's own page
 - A long or scroll-loaded list (`1–40 of 200`): `read --scroll` (the main list, or `-s <list>`; `--match <text>`).
 - Blocked, CAPTCHA or 429 (`read` says so): wait 30–60 s, retry, click a captcha checkbox once, then use the
   site's own search and pages, or another source.
-- Find a control with `find role button --name Save` or `snapshot -i -s <sel>`.
-- To read pages, not `snapshot --full`, `get html`, `curl`, `eval "fetch(…)"` or a shell loop.
+- Find a control with `find role button --name Save` or `snapshot -i -s <sel>`. Read pages with `read`, not
+  `snapshot --full` or `curl`.
 
 ## Act
 
@@ -83,7 +83,7 @@ EOF
   compare your row count with it; name what's missing and why. Save each batch: partial data beats none.
 - Every value comes from output this session showed or saved: never retype rows or fill gaps from memory; mark the
   rest `unverified`. Search results are pointers: open the source.
-- Answer in the shape asked. Files you name must exist.
+- Answer in the shape asked; files you name must exist. Recheck each total, URL, time and status against the output.
 
 ## Memory
 
