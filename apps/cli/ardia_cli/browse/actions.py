@@ -420,9 +420,19 @@ async def target_point(page, element, humanize: bool, check_cover: bool = True):
     if check_cover:
         if cover and cover.startswith("nothing"):
             vp = await viewport(page)
+            where = f"{element.label} is outside the visible page (its middle is at {cx - ox:.0f},{cy - oy:.0f} in a {vp['width']}×{vp['height']} viewport)"
+            lock = await scroll_lock(page, element)
+            if lock:
+                from ardia_cli import command_metrics
+
+                command_metrics.flag("click_scroll_locked", True)
+                raise BrowseError(
+                    f"Element {where}, and the page won't scroll to it: {lock}. Close that first (press Escape, or its close button), "
+                    "then retry",
+                    data={"point": [cx, cy], "viewport": [vp["width"], vp["height"]], "scrollLock": lock}, code="outside_viewport",
+                )
             raise BrowseError(
-                f"Element {element.label} is outside the visible page (its middle is at {cx - ox:.0f},{cy - oy:.0f} in a {vp['width']}×{vp['height']} "
-                "viewport), so a click there would land on nothing. Scroll it into view (scrollintoview), or snapshot again if the page moved",
+                f"Element {where}, so a click there would land on nothing. Scroll it into view (scrollintoview), or snapshot again if the page moved",
                 data={"point": [cx, cy], "viewport": [vp["width"], vp["height"]]}, code="outside_viewport",
             )
         if cover:
@@ -507,6 +517,13 @@ async def click(page, element, humanize: bool, count: int = 1, button: str = "le
     await expect_input(page, element.frame, lambda: page.input.gesture("click", press), {"mousedown": count, "mouseup": count}, "The click", element)
 
 
+async def scroll_lock(page, element) -> str | None:
+    try:
+        return await page.call(SCROLL_LOCK, element, frame=element.frame)
+    except BrowseError:
+        return None
+
+
 async def dom_click(page, element, error: BrowseError):
     from ardia_cli import command_metrics
 
@@ -541,6 +558,24 @@ async def focus_field(page, element, info, humanize: bool, tolerate_detach: bool
 
 CENTER = "(el) => { const before = el.getBoundingClientRect(); el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' }); const after = el.getBoundingClientRect(); return Math.abs(after.top - before.top) + Math.abs(after.left - before.left) > 1; }"
 CONSENT_SETTLE = 0.5
+SCROLL_LOCK = """(el) => {
+  const shown = (node) => node.checkVisibility ? node.checkVisibility({ checkVisibilityCSS: true }) : !!node.offsetParent;
+  const dialogs = [...document.querySelectorAll("dialog[open], [role=dialog], [role=alertdialog], [aria-modal=true]")]
+    .filter((node) => shown(node) && !node.contains(el));
+  const dialog = dialogs[dialogs.length - 1];
+  if (dialog) {
+    const labelled = dialog.getAttribute("aria-labelledby");
+    const name = (dialog.getAttribute("aria-label") || (labelled && document.getElementById(labelled)?.innerText) || dialog.innerText || "")
+      .trim().split("\\n")[0].slice(0, 60);
+    return name ? `the dialog "${name}" is open and holds the page still` : "an open dialog holds the page still";
+  }
+  const locked = (node) => {
+    const style = node && getComputedStyle(node);
+    return !!style && (style.position === "fixed" || /hidden|clip/.test(style.overflowY));
+  };
+  if (locked(document.body) || locked(document.documentElement)) return "the page's scrolling is locked, usually by an open menu or overlay";
+  return null;
+}"""
 DOM_CLICK = """(el) => {
   if (!el.isConnected || (el.checkVisibility && !el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }))) return false;
   const rect = el.getBoundingClientRect();

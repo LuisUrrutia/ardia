@@ -628,6 +628,18 @@ class BrowseEndToEnd(unittest.TestCase):
         self.assertEqual(report["prompt"], "reject")
         self.assertIn("late-buy", report["clicked"])
 
+    def test_a_click_the_page_cannot_scroll_to_names_the_dialog_holding_it(self):
+        session = "locked"
+        self.browse("open", self.url("locked.html"), "--show", session=session)
+        self.browse("click", "#open-language", session=session)
+        stuck = self.browse("click", "#currency", session=session, check=False)
+        self.assertNotEqual(stuck.returncode, 0)
+        self.assertIn('the dialog "Language and region" is open', stuck.stderr)
+        self.assertIn("press Escape", stuck.stderr)
+        self.browse("press", "Escape", session=session)
+        self.browse("click", "#currency", session=session)
+        self.assertEqual(json.loads(self.browse("get", "text", "#report", session=session).stdout), {"clicked": ["currency"]})
+
     def test_click_leaves_a_dialog_that_is_not_about_cookies_alone(self):
         session = "invite"
         self.browse("open", self.url("invite.html"), "--show", session=session)
