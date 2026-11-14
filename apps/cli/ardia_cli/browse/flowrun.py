@@ -17,10 +17,9 @@ CHALLENGE_SCAN = 20000
 FETCH = """async (url, method, headers, body, timeoutMs, limit) => {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
-  const read = method === "GET" || method === "HEAD";
   try {
     const response = await fetch(url, { method, headers, body: body === null ? undefined : body, credentials: "include", cache: "no-store",
-      redirect: read ? "follow" : "manual", signal: controller.signal });
+      redirect: "manual", signal: controller.signal });
     const text = response.type === "opaqueredirect" ? "" : await response.text();
     return { sent: true, status: response.status, type: response.type, url: response.url, mime: response.headers.get("content-type") || "",
       retryAfter: response.headers.get("retry-after"), text: text.length > limit ? null : text, size: text.length };
@@ -102,16 +101,22 @@ def parsed(request: dict, text: str | None):
     return value if isinstance(value, (dict, list)) else None
 
 
+def unknown(message: str, data: dict | None = None) -> BrowseError:
+    return BrowseError(message, data=data, code="outcome_unknown")
+
+
 def classify(flow: dict, request: dict, answer: dict, write: bool) -> Outcome:
     status = answer.get("status")
     if answer.get("error"):
-        if write and answer.get("maybe_sent", True):
-            return Outcome("stop", error=BrowseError(f"The write {request['method']} got no answer ({answer['error']}); it may have been applied, "
-                                                     "so it wasn't sent again. Check the site before running it again", code="outcome_unknown"))
+        if write:
+            return Outcome("stop", error=unknown(f"The write {request['method']} got no answer ({answer['error']}); it may have been applied, "
+                                                 "so it wasn't sent again. Check the site before running it again"))
         return Outcome("next", f"the request failed: {answer['error']}")
-    if answer.get("type") == "opaqueredirect" or (write and status and 300 <= status < 400):
-        return Outcome("stop", error=BrowseError("The write was answered with a redirect, so whether it was applied is unknown; it wasn't sent "
-                                                 "again. Check the site", code="outcome_unknown"))
+    if answer.get("type") == "opaqueredirect" or (status and 300 <= status < 400):
+        if write:
+            return Outcome("stop", error=unknown("The write was answered with a redirect, so whether it was applied is unknown; it wasn't sent "
+                                                 "again. Check the site"))
+        return Outcome("next", "the request was redirected, which the page tier doesn't follow")
     if answer.get("url") and not on_site(flow, answer["url"]):
         return Outcome("stop", error=BrowseError(f"The request was redirected off {flow['site']}, so its answer was dropped", code="off_site"))
     if status in (401, 403):
@@ -137,6 +142,8 @@ def classify(flow: dict, request: dict, answer: dict, write: bool) -> Outcome:
         return Outcome("stop", error=BrowseError(f"HTTP {status} for {request['method']} {urlsplit(request['url']).path}", data={"httpStatus": status},
                                                  code="http_error"))
     if answer.get("text") is None:
+        if write:
+            return Outcome("stop", error=unknown("The write was answered, but the answer was too large to read; it wasn't sent again. Check the site"))
         return Outcome("next", "the answer was too large to read")
     if request["kind"] == "json" and html and challenge(answer.get("text")):
         if write:
@@ -246,7 +253,7 @@ async def replay_tier(ctx, flow: dict, values: dict, request: dict, url: str, al
     try:
         page = await readpages.open_reader(state, opened)
         state.current = page.target_id
-        answer = await replay_in(ctx, flow, page, commands, start, replayed, deadline)
+        answer = await replay_in(ctx, flow, values, page, commands, start, replayed, deadline)
         if answer.get("needs_input"):
             own = await own_tab(state, previous)
             if own is None:
@@ -255,7 +262,7 @@ async def replay_tier(ctx, flow: dict, values: dict, request: dict, url: str, al
             await temptabs.release(state, opened)
             state.current = own.target_id
             replay_note.append(f"the replay ran in this session's tab [{state.tab_id(own.target_id)}], since background tabs don't take input here")
-            answer = await replay_in(ctx, flow, own, commands, start, replayed, deadline)
+            answer = await replay_in(ctx, flow, values, own, commands, start, replayed, deadline)
         if answer:
             return answer
     finally:
@@ -273,7 +280,7 @@ async def replay_tier(ctx, flow: dict, values: dict, request: dict, url: str, al
 NO_INPUT_NEEDED = {"open", "wait", "back", "forward", "reload", "pushstate"}
 
 
-async def replay_in(ctx, flow: dict, page, commands: list, start: str, replayed: list, deadline: float) -> dict:
+async def replay_in(ctx, flow: dict, values: dict, page, commands: list, start: str, replayed: list, deadline: float) -> dict:
     from ardia_cli.browse import readpages
     from ardia_cli.browse.daemon import run_one
 
@@ -298,6 +305,9 @@ async def replay_in(ctx, flow: dict, page, commands: list, start: str, replayed:
             return {"error": f"`{command[0]}` didn't finish in the run's time", "maybe_sent": bool(state_writes(replayed))}
         if isinstance(error, (OutcomeUnknown, ConnectionLost)):
             raise error
+        extra = unlisted_writes(flow, values, state_writes(replayed))
+        if extra:
+            return {"unlisted": extra, "maybe_sent": True}
         if error is not None:
             return {"replay_failed": f"`{' '.join(command[:2])}` failed: {error.message}", "maybe_sent": bool(state_writes(replayed))}
         current = ctx.state.pages.get(ctx.state.current)
@@ -308,6 +318,20 @@ async def replay_in(ctx, flow: dict, page, commands: list, start: str, replayed:
 
 def state_writes(replayed: list[dict]) -> list:
     return [write for step in replayed for write in step.get("writes") or []]
+
+
+def write_key(method: str, url: str) -> tuple:
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return (method, "", "")
+    return (str(method).upper(), parts.netloc.lower(), parts.path)
+
+
+def unlisted_writes(flow: dict, values: dict, seen: list[dict]) -> list[str]:
+    listed = {write_key(write["method"], flows.fill_url(write["url"], values)) for write in flow.get("writes") or []}
+    return [f"{write['method']} {urlsplit(write['url']).netloc}{urlsplit(write['url']).path}" for write in seen
+            if write_key(write["method"], write["url"]) not in listed]
 
 
 def write_id(flow: dict, request: dict) -> str | None:
@@ -355,12 +379,17 @@ async def run(ctx, root: Path, flow: dict, options: dict) -> Result:
             answer = await page_tier(ctx, flow, values, url, request["method"], request.get("headers") or {}, body, write, deadline)
         else:
             answer = await replay_tier(ctx, flow, values, request, url, allowed, deadline, notes)
+        if answer.get("unlisted"):
+            raise unknown(f"The replay sent writes the flow doesn't list ({', '.join(answer['unlisted'][:5])}), so it stopped. Check the site; "
+                          "save the flow again if the page changed", {"writes": answer["unlisted"], "fellBack": fell_back})
         if answer.get("skip") or answer.get("replay_failed"):
             fell_back.append({"tier": tier, "why": answer.get("skip") or answer["replay_failed"]})
-            if write and answer.get("maybe_sent"):
-                raise BrowseError("The replay may have sent the write before it failed, so it wasn't tried again. Check the site",
-                                  data={"fellBack": fell_back}, code="outcome_unknown")
+            if answer.get("maybe_sent"):
+                raise unknown("The replay sent a write before it failed, so nothing was tried again. Check the site", {"fellBack": fell_back})
             continue
+        if answer.get("maybe_sent") and not answer.get("sent"):
+            raise unknown(f"The replay sent a write and then stopped ({answer.get('error') or 'no answer'}), so nothing was tried again. Check the site",
+                          {"fellBack": fell_back})
         outcome = classify(flow, request, answer, write)
         if outcome.drift:
             drifts.append({"tier": tier, "why": outcome.drift})
@@ -394,7 +423,7 @@ async def run(ctx, root: Path, flow: dict, options: dict) -> Result:
     command_metrics.flag("flow_shaped", not shape.empty)
     if drifts:
         command_metrics.flag("flow_drifted", True)
-    shaped = shaping.apply(outcome.value, shape, always=True)
+    shaped = shaping.apply(outcome.value, shape, always=True, path=request["expect"].get("list"))
     if shaped.get("items") is not None:
         command_metrics.count("flow_items", len(shaped["items"]))
     data = {"flow": flow["name"], "site": flow["site"], "tier": tier, "verified": verified, "fellBack": fell_back, "result": shaped}

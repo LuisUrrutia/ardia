@@ -3,7 +3,7 @@ import base64
 import collections
 import json
 import re
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, unquote, urlsplit
 
 from ardia_cli.browse.errors import BrowseError, ConnectionLost, Usage
 
@@ -14,7 +14,8 @@ BODIES_PER_STEP = 8
 CAPTURE_BUDGET = 2.0
 PROBE_BUDGET = 1.5
 POST_LIMIT = 64 * 1024
-READ_METHODS = {"GET", "HEAD", "OPTIONS"}
+READ_METHODS = {"GET", "HEAD"}
+GRAPHQL_KEYS = {"query", "variables", "operationName", "extensions"}
 CAPTURED_TYPES = {"XHR", "Fetch", "Document"}
 RECORDED = {"open", "click", "dblclick", "fill", "type", "press", "keyboard", "select", "check", "uncheck", "find", "back", "forward",
             "reload", "scroll", "scrollintoview", "hover", "focus", "wait", "pushstate"}
@@ -22,7 +23,8 @@ ON_ELEMENT = {"click", "dblclick", "fill", "type", "select", "check", "uncheck",
 TYPING = {"fill", "type"}
 KEPT_HEADERS = ("content-type", "accept", "x-requested-with")
 CREDENTIAL_HEADER = re.compile(r"^(authorization|proxy-authorization|cookie)$|token|csrf|xsrf|api-?key|secret|session|signature|^x-auth", re.I)
-SUSPECT_SEGMENT = re.compile(r"^(logout|log-out|signout|sign-out|unsubscribe|delete|remove)$", re.I)
+SUSPECT_WORDS = {"logout", "signout", "unsubscribe", "delete", "remove", "destroy"}
+GRAPHQL_WRITES = {"mutation", "subscription"}
 NO_HUMANIZE = {"--no-humanize": "bool"}
 COMMAND_FLAGS = {
     "open": {"--enable": "multi", "--init-script": "multi", "--capture-console": "bool", "--headers": "value", "--label": "value", "--show": "bool"},
@@ -132,7 +134,30 @@ def kept_headers(headers: dict | None) -> tuple[dict, bool]:
     return kept, stripped
 
 
-def graphql_query(body: str | None) -> bool:
+def graphql_kinds(text: str) -> list[str] | None:
+    text = re.sub(r'"""[\s\S]*?"""|"(?:\\.|[^"\\\n])*"', '""', text)
+    text = re.sub(r"#[^\n]*", "", text)
+    kinds: list[str] = []
+    head: list[str] = []
+    depth = 0
+    for token in re.findall(r"[{}]|[A-Za-z_][A-Za-z0-9_]*|[^\s{}A-Za-z_]+", text):
+        if token == "{":
+            if depth == 0:
+                kinds.append(head[0] if head else "query")
+                head = []
+            depth += 1
+        elif token == "}":
+            depth -= 1
+            if depth < 0:
+                return None
+        elif depth == 0:
+            head.append(token)
+    if depth != 0 or head or not kinds:
+        return None
+    return kinds
+
+
+def graphql_read(body: str | None) -> bool:
     if not body:
         return False
     try:
@@ -140,21 +165,48 @@ def graphql_query(body: str | None) -> bool:
     except ValueError:
         return False
     operations = parsed if isinstance(parsed, list) else [parsed]
-    texts = [op.get("query") for op in operations if isinstance(op, dict)]
-    if not texts or not all(isinstance(text, str) for text in texts):
+    if not operations:
         return False
-    return all(not re.match(r"\s*(mutation|subscription)\b", text) for text in texts)
+    for operation in operations:
+        if not isinstance(operation, dict) or not set(operation) <= GRAPHQL_KEYS or not isinstance(operation.get("query"), str):
+            return False
+        kinds = graphql_kinds(operation["query"])
+        if kinds is None or "query" not in kinds or not set(kinds) <= {"query", "fragment"}:
+            return False
+    return True
+
+
+def decoded_text(text: str) -> str:
+    for _ in range(3):
+        once = unquote(text)
+        if once == text:
+            break
+        text = once
+    return text.lower()
+
+
+def suspect(text: str, words: set) -> bool:
+    tokens = [token for token in re.split(r"[^a-z]+", decoded_text(text)) if token]
+    pairs = {first + second for first, second in zip(tokens, tokens[1:])}
+    return bool((set(tokens) | pairs) & words)
 
 
 def write_kind(method: str, url: str, body: str | None) -> str | None:
-    method = method.upper()
-    if method not in READ_METHODS:
-        return None if graphql_query(body) else "explicit"
-    try:
-        segments = urlsplit(url).path.split("/")
-    except ValueError:
+    method = str(method or "").upper()
+    if method == "POST" and graphql_read(body):
         return None
-    return "suspected" if any(SUSPECT_SEGMENT.match(segment) for segment in segments) else None
+    if method not in READ_METHODS:
+        return "explicit"
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return "suspected"
+    if suspect(parts.path, SUSPECT_WORDS):
+        return "suspected"
+    for key, value in parse_qsl(parts.query, keep_blank_values=True):
+        if suspect(key, SUSPECT_WORDS) or suspect(value, SUSPECT_WORDS | GRAPHQL_WRITES):
+            return "suspected"
+    return None
 
 
 def attributes(text: str) -> dict:
@@ -448,11 +500,13 @@ async def collect(page, watch, step: dict):
                 body = (await page.send("Network.getRequestPostData", {"requestId": request_id}, timeout=CAPTURE_BUDGET)).get("postData")
             except BrowseError:
                 body = None
-        if body is not None and len(body) > POST_LIMIT:
+        too_large = body is not None and len(body) > POST_LIMIT
+        if too_large:
             body = None
-            stripped = True
+        if record.get("has_post") and body is None:
+            too_large = True
         kind = write_kind(method, url, body)
-        if kind:
+        if kind and record["type"] != "Preflight":
             step["writes"].append({"method": method, "url": url, "kind": kind, "status": status, "type": record["type"]})
         readable = readable_type(record) if record["type"] in CAPTURED_TYPES else None
         if readable is None or not record.get("done") or record.get("failed") or not status or not 200 <= status < 300 or taken >= BODIES_PER_STEP:
@@ -467,6 +521,8 @@ async def collect(page, watch, step: dict):
             continue
         entry = {"method": method, "url": url, "type": record["type"], "status": status, "mime": record.get("mime") or "",
                  "headers": headers, "body": body, "strippedAuth": stripped, "kind": readable, "bytes": len(text), "text": text}
+        if too_large:
+            entry["bodyLost"] = True
         if readable == "document" and materialize(entry) is None:
             continue
         step["requests"].append(entry)

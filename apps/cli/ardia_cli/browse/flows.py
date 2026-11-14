@@ -1,3 +1,5 @@
+import base64
+import ipaddress
 import json
 import os
 import re
@@ -14,7 +16,20 @@ from ardia_cli.browse.errors import BrowseError, Usage
 VERSION = 1
 DIR_NAME = "Flows"
 NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
-PARAM = re.compile(r"\{\{([a-z][a-z0-9_]{0,39})\}\}")
+PARAM = re.compile(r"\{\{([a-z][a-z0-9_]{0,23})\}\}")
+PARAM_NAME = re.compile(r"[a-z][a-z0-9_]{0,23}")
+FIELD_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,23}(\.[A-Za-z_][A-Za-z0-9_]{0,23})?")
+SAFE_WORD = re.compile(r"[A-Za-z][A-Za-z_.-]{0,31}")
+SMALL_NUMBER = 10000
+EMAIL = re.compile(r"[^\s@/]+@[^\s@/]+\.[A-Za-z]{2,}")
+PHONE = re.compile(r"\+?\d[\d\s().-]{5,}\d")
+MAX_DESCRIPTION = 120
+HINT_DESCRIPTION = 80
+MAX_EXAMPLE = 40
+REPLAYABLE = {"open", "click", "dblclick", "fill", "type", "press", "keyboard", "select", "check", "uncheck", "find", "back", "forward",
+              "reload", "scroll", "scrollintoview", "hover", "focus", "wait"}
+REPLAY_FLAGS = {"--name", "--exact", "--partial", "--text", "--url", "--load", "--timeout", "--state", "--no-humanize"}
+FIND_ACTIONS = {"click", "fill", "type", "press", "check", "uncheck", "select", "hover", "focus", "dblclick", "text"}
 MAX_FLOW = 4 * 1024 * 1024
 REDACTED = "<redacted>"
 MIN_SUBSTRING = 3
@@ -46,17 +61,96 @@ def check_name(name: str) -> str:
     return name
 
 
-def slug(text: str) -> str:
-    words = re.findall(r"[a-z0-9]+", re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", str(text or "")).lower())
-    name = "_".join(words)[:40].strip("_")
-    if not name or not name[0].isalpha():
-        name = ("p_" + name)[:40] if name else "text"
-    return name
+def slug(text: str) -> str | None:
+    name = re.sub(r"[^a-z0-9]+", "_", re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", str(text or "")).lower()).strip("_")
+    return name if PARAM_NAME.fullmatch(name) else None
 
 
 def credential_key(key: str) -> bool:
-    words = [word.lower() for word in re.split(r"[_\-.\[\]\s]+|(?<=[a-z])(?=[A-Z])", unquote_plus(key)) if word]
-    return any(word in CREDENTIAL_WORDS for word in words) or unquote_plus(key).lower().replace("-", "").replace("_", "") in CREDENTIAL_WORDS
+    words = [word.lower() for word in re.split(r"[_\-.\[\]\s]+|(?<=[a-z])(?=[A-Z])", unquote_plus(str(key))) if word]
+    words += [word[:-1] for word in words if word.endswith("s")]
+    return any(word in CREDENTIAL_WORDS for word in words) or unquote_plus(str(key)).lower().replace("-", "").replace("_", "") in CREDENTIAL_WORDS
+
+
+def personal(text: str) -> bool:
+    text = str(text)
+    return bool(EMAIL.search(text) or PHONE.search(text) or (re.search(r"\d", text) and re.search(r"[A-Za-z]", text) and re.search(r"\s", text.strip())))
+
+
+def secret_like(text: str) -> bool:
+    text = str(text)
+    return len(text) >= 20 and bool(re.search(r"\d", text)) and bool(re.search(r"[A-Za-z]", text))
+
+
+def safe_leaf(value) -> bool:
+    if value is None or isinstance(value, bool):
+        return True
+    if isinstance(value, (int, float)):
+        return abs(value) < SMALL_NUMBER
+    if not isinstance(value, str):
+        return False
+    if PARAM.fullmatch(value) or SAFE_WORD.fullmatch(value) or value == "":
+        return True
+    return bool(re.fullmatch(r"-?\d{1,4}", value))
+
+
+def graphql_text_safe(text: str) -> bool:
+    stripped = re.sub(r"#[^\n]*", "", text)
+    return '"' not in stripped and not re.search(r"\d{5,}", stripped)
+
+
+def body_problem(body: str | None, kind: str | None) -> str | None:
+    if body is None:
+        return None
+    if kind == "form":
+        for pair in body.split("&"):
+            key, _, value = pair.partition("=")
+            value = unquote_plus(value)
+            if not safe_leaf(value) or (credential_key(key) and value and not PARAM.fullmatch(value)):
+                return "its body held a value a flow doesn't keep (only params, small numbers, true/false and short words)"
+        return None
+    if kind != "json":
+        return "its body isn't JSON or a form, so a flow can't keep it safely"
+    problems = []
+
+    def walk(value, top: bool):
+        if isinstance(value, dict):
+            for key, inner in value.items():
+                if top and key == "query" and isinstance(inner, str) and flowlog.graphql_kinds(inner) is not None:
+                    if not graphql_text_safe(inner):
+                        problems.append(key)
+                    continue
+                if credential_key(key) and not (isinstance(inner, str) and PARAM.fullmatch(inner)) and inner not in (None, ""):
+                    problems.append(key)
+                    continue
+                walk(inner, False)
+        elif isinstance(value, list):
+            for inner in value:
+                walk(inner, top and isinstance(inner, dict))
+        elif not safe_leaf(value):
+            problems.append(value)
+
+    walk(json.loads(body), True)
+    return "its body held a value a flow doesn't keep (only params, small numbers, true/false and short words)" if problems else None
+
+
+def url_problem(url: str) -> str | None:
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return "its URL doesn't parse"
+    segments = [flowlog.decoded_text(segment) for segment in parts.path.split("/") if segment]
+    for segment in segments:
+        if PARAM.fullmatch(segment):
+            continue
+        if credential_key(segment) or secret_like(segment) or personal(segment) or ":" in segment:
+            return "its URL path looks like it holds a credential or personal data"
+    for key, value in parse_qsl(parts.query, keep_blank_values=True):
+        if PARAM.fullmatch(value) or value == REDACTED or credential_key(key):
+            continue
+        if personal(value) or secret_like(value):
+            return "its URL query holds what looks like personal data or a credential"
+    return None
 
 
 def site_of(url: str) -> str | None:
@@ -201,6 +295,37 @@ def body_type(body: str | None, content_type: str) -> str | None:
     return "form" if form_like(body, content_type) else "text"
 
 
+def step_url(url: str, values: list[tuple[str, str]], secrets: list[str]) -> str:
+    from ardia_cli.browse.changes import clean_url
+
+    if not url or any(carries(url, secret) for secret in secrets):
+        return REDACTED if url else ""
+    try:
+        return clean_url(template_url(url, values))
+    except ValueError:
+        return REDACTED
+
+
+def is_local(host: str) -> bool:
+    host = (host or "").lower().strip("[]").rstrip(".")
+    if host == "localhost" or host.endswith(".localhost") or not host:
+        return True
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return address.is_loopback or address.is_private or address.is_link_local or address.is_reserved or address.is_unspecified or address.is_multicast
+
+
+def host_allowed(host: str, start_host: str) -> bool:
+    hostname = (urlsplit("//" + host).hostname or "") if "//" not in host else (urlsplit(host).hostname or "")
+    if not hostname or flowlog.base_domain(hostname) != flowlog.base_domain(start_host):
+        return False
+    if is_local(hostname) or is_local(start_host):
+        return hostname == start_host.lower()
+    return True
+
+
 def redact_body(body: str | None, kind: str | None) -> tuple[str | None, bool]:
     if body is None:
         return None, False
@@ -297,7 +422,7 @@ def redact_credentials(url: str) -> tuple[str, bool]:
     pairs = []
     for pair in parts.query.split("&") if parts.query else []:
         key, sep, value = pair.partition("=")
-        if sep and value and not PARAM.fullmatch(value) and credential_key(key):
+        if sep and value and not PARAM.fullmatch(value) and (credential_key(key) or personal(unquote_plus(value)) or secret_like(unquote_plus(value))):
             pairs.append(f"{key}={REDACTED}")
             touched = True
         else:
@@ -313,8 +438,12 @@ def redact_credentials(url: str) -> tuple[str, bool]:
 def carries(text: str | None, secret: str) -> bool:
     if not text or not secret:
         return False
-    forms = {secret, quote(secret, safe=""), quote_plus(secret), json.dumps(secret, ensure_ascii=False)[1:-1]}
-    return any(form and form in text for form in forms)
+    raw = secret.encode()
+    encoded = base64.b64encode(raw).decode()
+    forms = {secret, quote(secret, safe=""), quote_plus(secret), json.dumps(secret, ensure_ascii=False)[1:-1], encoded, encoded.rstrip("="),
+             base64.urlsafe_b64encode(raw).decode().rstrip("="), raw.hex(), raw.hex().upper()}
+    lowered = text.lower()
+    return any(form and (form in text or (form.isalnum() and form.lower() == form and form in lowered)) for form in forms)
 
 
 def scrub(value, secrets: list[str]):
@@ -371,16 +500,18 @@ def build_flow(name: str, steps: list[dict], given: dict | None = None, output: 
         if value in named:
             return named[value]
         taken = {param["name"] for param in params}
-        stem = slug(hint)
-        candidate, number = stem, 2
-        while candidate in taken:
-            candidate, number = f"{stem}_{number}", number + 1
-        params.append({"name": candidate, "example": value if example else None, "source": source})
+        candidate = slug(hint)
+        if candidate is None or candidate in taken:
+            number = 1
+            while f"p{number}" in taken:
+                number += 1
+            candidate = f"p{number}"
+        params.append({"name": candidate, "example": value if example and not personal(value) and not secret_like(value) else None, "source": source})
         named[value] = candidate
         return candidate
 
     for key in given:
-        if not re.fullmatch(r"[a-z][a-z0-9_]{0,39}", key):
+        if not PARAM_NAME.fullmatch(key):
             raise Usage(f"A param name is lowercase letters, digits and '_', starting with a letter, not {key!r}")
     by_given = {value: key for key, value in given.items()}
     for step in steps:
@@ -409,6 +540,9 @@ def build_flow(name: str, steps: list[dict], given: dict | None = None, output: 
             if any(carries(request["url"], secret) or carries(request.get("body"), secret) for secret in secrets):
                 dropped.append({"id": request["id"], "why": "it sent a value typed into a secret field"})
                 continue
+            if request.get("bodyLost"):
+                dropped.append({"id": request["id"], "why": "its request body couldn't be read whole"})
+                continue
             captured.append((step, request))
 
     for url in [start] + [step.get("url") or "" for step in steps if step["command"][0] == "open"]:
@@ -426,14 +560,21 @@ def build_flow(name: str, steps: list[dict], given: dict | None = None, output: 
     for step, request in captured:
         content_type = (request.get("headers") or {}).get("content-type", "")
         kind = body_type(request.get("body"), content_type)
-        url, redacted = redact_credentials(template_url(request["url"], values))
+        templated = template_url(request["url"], values)
+        body = template_body(request.get("body"), kind, values)
+        problem = url_problem(templated) or body_problem(body, kind)
+        if problem:
+            dropped.append({"id": request["id"], "why": problem})
+            continue
+        url, redacted = redact_credentials(templated)
         value = body_value(request)
         found = shaping.main_list(value)
         expect = {"status": request.get("status"), "mime": request.get("mime") or "", "signature": signature(value), "bytes": request.get("bytes") or 0,
-                  "list": found[0] if found else None, "itemFields": shaping.item_fields(found[1]) if found else []}
+                  "list": found[0] if found else None, "listRoot": isinstance(value, list),
+                  "itemFields": [field for field in shaping.item_fields(found[1]) if FIELD_NAME.fullmatch(field)] if found else []}
         if request.get("kind") == "document":
             expect["extract"] = request.get("spec")
-        body, body_redacted = redact_body(template_body(request.get("body"), kind, values), kind)
+        body, body_redacted = redact_body(body, kind)
         kept = {"id": request["id"], "method": request["method"], "url": url, "headers": request.get("headers") or {},
                 "body": body, "bodyType": kind, "kind": request.get("kind") or "json", "expect": expect}
         if request.get("strippedAuth") or body_redacted or redacted:
@@ -444,8 +585,9 @@ def build_flow(name: str, steps: list[dict], given: dict | None = None, output: 
         requests.append(kept)
         hosts.add(netloc_of(request["url"]))
     if not requests:
-        raise BrowseError("Nothing to save: the steps in that range caused no first-party JSON answers or pages with embedded JSON "
-                          "(`flow steps` lists what each step caused)", data={"dropped": dropped}, code="nothing_to_save")
+        why = "; ".join(f"{item['id']}: {item['why']}" for item in dropped)
+        raise BrowseError("Nothing to save: the steps in that range caused no first-party JSON answers or pages with embedded JSON a flow can keep "
+                          f"(`flow steps` lists what each step caused){'; left out ' + why if why else ''}", data={"dropped": dropped}, code="nothing_to_save")
     if output is not None and output not in {request["id"] for request in requests}:
         raise Usage(f"--output {output} isn't one of the requests kept: {', '.join(request['id'] for request in requests)}")
 
@@ -469,7 +611,7 @@ def build_flow(name: str, steps: list[dict], given: dict | None = None, output: 
             scrubbed = scrub(command, secrets)
             hidden = hidden or scrubbed != command
             command = scrubbed
-        after, _ = redact_credentials(scrub(step.get("url") or "", secrets))
+        after = step_url(step.get("url") or "", values, secrets)
         if hidden:
             redacted_steps.append(step["seq"])
         if command is None:
@@ -484,7 +626,7 @@ def build_flow(name: str, steps: list[dict], given: dict | None = None, output: 
         for write in step.get("writes") or []:
             if flowlog.base_domain(flowlog.host_of(write["url"])) != base:
                 continue
-            url, _ = redact_credentials(scrub(template_url(write["url"], values), secrets))
+            url = step_url(write["url"], values, secrets)
             writes.append({"id": f"w{len(writes) + 1}", "method": write["method"], "url": url, "kind": write["kind"], "step": step["seq"]})
     for request in requests:
         if is_write(request):
@@ -494,7 +636,7 @@ def build_flow(name: str, steps: list[dict], given: dict | None = None, output: 
                 match["request"] = request["id"]
     start_saved, start_hidden = redact_credentials(scrub(template_url(start, values), secrets))
     flow = {
-        "version": VERSION, "name": name, "description": " ".join(str(description or "").split())[:300] or None, "site": site, "origin": origin,
+        "version": VERSION, "name": name, "description": " ".join(str(description or "").split())[:MAX_DESCRIPTION] or None, "site": site, "origin": origin,
         "startUrl": start_saved, "hosts": sorted(host for host in hosts if host), "createdAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "createdBy": {"tool": "ardia browse", "version": tool_version}, "params": params, "output": output or default_output(requests),
         "verified": True, "replayable": not redacted_steps and not not_replayable and not start_hidden, "redactedSteps": redacted_steps,
@@ -511,24 +653,84 @@ def output_request(flow: dict) -> dict | None:
     return next((request for step in flow["steps"] for request in step.get("requests") or [] if request["id"] == flow["output"]), None)
 
 
+def invalid(why: str) -> BrowseError:
+    return BrowseError(f"That flow file {why}; save the flow again", code="flow_invalid")
+
+
+def check_command(command, flow: dict, start_host: str):
+    if command is None:
+        return
+    if not isinstance(command, list) or not command or not all(isinstance(part, str) for part in command):
+        raise invalid("has a step that isn't a list of words")
+    name, args = command[0], command[1:]
+    if name not in REPLAYABLE:
+        raise invalid(f"replays `{name[:20]}`, which a flow never runs")
+    flags = [arg.split("=", 1)[0] for arg in args if arg.startswith("--")]
+    if any(flag not in REPLAY_FLAGS for flag in flags):
+        raise invalid(f"passes {', '.join(flag for flag in flags if flag not in REPLAY_FLAGS)[:60]} to `{name}`")
+    if name == "open":
+        if len(args) != 1:
+            raise invalid("has an `open` without exactly one URL")
+        target = fill_text(args[0], {param["name"]: "x" for param in flow["params"]})
+        if not target.startswith(("http://", "https://")) or not host_allowed(urlsplit(target).netloc, start_host):
+            raise invalid("opens a page off its site")
+    if name == "keyboard" and (not args or args[0] not in ("type", "inserttext")):
+        raise invalid("has a keyboard step other than type or inserttext")
+    if name == "find":
+        actions = [arg for arg in args if arg in FIND_ACTIONS]
+        if not actions:
+            raise invalid("has a find step with no action it allows")
+    if name == "wait" and any(arg.startswith(("http:", "https:", "javascript:")) for arg in args):
+        raise invalid("has a wait step with a URL")
+
+
 def validate(flow, site: str | None = None, name: str | None = None) -> dict:
     if not isinstance(flow, dict):
-        raise BrowseError("That flow file isn't a JSON object; save the flow again", code="flow_invalid")
+        raise invalid("isn't a JSON object")
     if flow.get("version") != VERSION:
-        raise BrowseError(f"That flow file is version {flow.get('version')!r}; this ardia reads version {VERSION}. Save the flow again", code="flow_invalid")
+        raise invalid(f"is version {str(flow.get('version'))[:10]!r}; this ardia reads version {VERSION}.")
     unknown = sorted(set(flow) - FIELDS)
     missing = [key for key in REQUIRED if key not in flow]
     if unknown or missing:
-        why = (f"unknown fields {', '.join(unknown)}" if unknown else "") + ("; " if unknown and missing else "") + (f"missing {', '.join(missing)}" if missing else "")
-        raise BrowseError(f"That flow file has {why}; save the flow again", code="flow_invalid")
-    if (site is not None and flow["site"] != site) or (name is not None and flow["name"] != name) or site_of(flow["startUrl"]) != flow["site"]:
-        raise BrowseError("That flow file's site or name doesn't match where it's stored; save the flow again", code="flow_invalid")
-    base = flowlog.base_domain(urlsplit(flow["origin"]).hostname or "")
+        raise invalid("has " + "; ".join(part for part in (f"unknown fields {', '.join(unknown)[:80]}" if unknown else "",
+                                                             f"missing {', '.join(missing)}" if missing else "") if part))
+    start = flow["startUrl"]
+    if not isinstance(start, str) or not start.startswith(("http://", "https://")):
+        raise invalid("has a start URL that isn't a web page")
+    start_host = (urlsplit(start).hostname or "").lower()
+    if (site is not None and flow["site"] != site) or (name is not None and flow["name"] != name) or site_of(start) != flow["site"]:
+        raise invalid("has a site or name that doesn't match where it's stored")
+    if flow["origin"] != f"{urlsplit(start).scheme}://{netloc_of(start)}":
+        raise invalid("has an origin that isn't its start URL's")
+    if not isinstance(flow["hosts"], list) or netloc_of(start) not in flow["hosts"]:
+        raise invalid("doesn't list its start URL's host")
     for host in flow["hosts"]:
-        if flowlog.base_domain(urlsplit("//" + host).hostname or "") != base:
-            raise BrowseError(f"That flow file allows {host}, which isn't on {flow['site']}; save the flow again", code="flow_invalid")
+        if not isinstance(host, str) or not host_allowed(host, start_host):
+            raise invalid(f"allows {str(host)[:60]}, which isn't on {flow['site']} or is a local address")
+    description = flow.get("description")
+    if description is not None and (not isinstance(description, str) or len(description) > MAX_DESCRIPTION or "\n" in description):
+        raise invalid("has a description longer than one short line")
+    if not isinstance(flow["params"], list) or not all(isinstance(param, dict) and isinstance(param.get("name"), str)
+                                                        and PARAM_NAME.fullmatch(param["name"]) for param in flow["params"]):
+        raise invalid("has a param whose name isn't a short identifier")
+    if not isinstance(flow["steps"], list):
+        raise invalid("has no list of steps")
+    for step in flow["steps"]:
+        if not isinstance(step, dict):
+            raise invalid("has a step that isn't an object")
+        check_command(step.get("command"), flow, start_host)
+        for request in step.get("requests") or []:
+            url = request.get("url") if isinstance(request, dict) else None
+            if not isinstance(url, str) or not url.startswith(("http://", "https://")) or netloc_of(url) not in flow["hosts"]:
+                raise invalid("has a request to a host it doesn't list")
+            fields = (request.get("expect") or {}).get("itemFields") or []
+            if not all(isinstance(field, str) and FIELD_NAME.fullmatch(field) for field in fields):
+                raise invalid("has an item field that isn't a short identifier")
+    for write in flow.get("writes") or []:
+        if not isinstance(write, dict) or not host_allowed(netloc_of(str(write.get("url") or "")), start_host):
+            raise invalid("lists a write off its site")
     if output_request(flow) is None:
-        raise BrowseError("That flow file's output request is missing; save the flow again", code="flow_invalid")
+        raise invalid("has no output request")
     return flow
 
 
@@ -656,9 +858,15 @@ def locate(root: Path, name: str, site: str | None, page_url: str | None) -> str
     raise Usage(f"{name} is saved for {', '.join(found)}; pick one with --site <site>")
 
 
-def signature_line(row: dict) -> str:
+def clipped(text: str, limit: int) -> str:
+    text = " ".join(str(text).split())
+    return text if len(text) <= limit else text[:limit - 1] + "…"
+
+
+def signature_line(row: dict, limit: int = MAX_DESCRIPTION) -> str:
     params = ", ".join(param["name"] for param in row.get("params") or [])
-    return f"{row['name']}({params})" + (f" — {row['description']}" if row.get("description") else "")
+    described = f" [saved description: {json.dumps(clipped(row['description'], limit), ensure_ascii=False)}]" if row.get("description") else ""
+    return f"{row['name']}({params}){described}"
 
 
 def listing_text(rows: list[dict]) -> str:
@@ -668,7 +876,8 @@ def listing_text(rows: list[dict]) -> str:
             lines.append(f"{row['site']}  {row['name']}  (unreadable: {row['error']})")
             continue
         fields = ", ".join(row["itemFields"][:12]) + (" …" if len(row["itemFields"]) > 12 else "")
-        examples = ", ".join(f"{param['name']}={param['example']}" for param in row["params"] if param.get("example"))
+        examples = ", ".join(f"{param['name']}={json.dumps(clipped(param['example'], MAX_EXAMPLE), ensure_ascii=False)}"
+                             for param in row["params"] if param.get("example"))
         extra = "; ".join(part for part in (f"examples {examples}" if examples else "", f"items: {fields}" if fields else "",
                                              "unverified" if not row["verified"] else "", f"{row['writes']} write(s)" if row["writes"] else "") if part)
         lines.append(f"{row['site']}  {signature_line(row)}" + (f"  [{extra}]" if extra else ""))
@@ -676,7 +885,8 @@ def listing_text(rows: list[dict]) -> str:
 
 
 def show_text(flow: dict) -> str:
-    lines = [f"{flow['name']} on {flow['site']}" + (f": {flow['description']}" if flow.get("description") else ""), f"start: {flow['startUrl']}"]
+    lines = [f"{flow['name']} on {flow['site']}" + (f" [saved description: {json.dumps(flow['description'], ensure_ascii=False)}]" if flow.get("description") else ""),
+             f"start: {flow['startUrl']}"]
     for param in flow["params"]:
         example = f" (recorded: {param['example']})" if param.get("example") else " (required)"
         lines.append(f"param {param['name']} [{param.get('source')}]{example}")
@@ -699,14 +909,14 @@ def run_local(root: Path, args: list[str], page_url: str | None = None) -> Resul
         _, positional = parse(args[1:], SITE_FLAGS)
         site = check_site(site_of(positional[0]) or positional[0]) if positional else None
         rows = listing(root, site)
-        return Result({"flows": rows}, listing_text(rows))
+        return Result({"flows": rows}, listing_text(rows), page_content=True)
     if action == "show":
         options, positional = parse(args[1:], SITE_FLAGS)
         if not positional:
             raise Usage("Usage: ardia browse flow show <name> [--site s]")
         site = locate(root, positional[0], options.get("site"), page_url)
         flow = load(root, site, positional[0])
-        return Result({"flow": flow}, show_text(flow))
+        return Result({"flow": flow}, show_text(flow), page_content=True)
     if action in ("rm", "remove", "delete"):
         options, positional = parse(args[1:], SITE_FLAGS)
         if not positional:
@@ -743,7 +953,7 @@ def hint(state, url: str | None) -> str | None:
     command_metrics.flag("flow_hint_shown", True)
     more = f"; … {len(rows) - HINT_LIMIT} more: `ardia browse flow list {site}`" if len(rows) > HINT_LIMIT else ""
     return (f"# saved flows for {site} (`ardia browse flow run <name> --param k=v`, `flow show <name>`): "
-            + "; ".join(signature_line(row) for row in rows[:HINT_LIMIT]) + more)
+            + "; ".join(signature_line(row, HINT_DESCRIPTION) for row in rows[:HINT_LIMIT]) + more)
 
 
 def parse_params(values: list[str] | None) -> dict:
@@ -776,20 +986,34 @@ def save_range(log: flowlog.Log, first: int | None, last: int | None) -> list[di
     return [step for step in steps if first <= step["seq"] <= last]
 
 
-def step_line(step: dict) -> list[str]:
+def shown_url(url: str) -> str:
     from ardia_cli.browse.changes import masked_url
 
-    command = step.get("replay") or step["command"]
+    return masked_url(redact_credentials(url)[0])
+
+
+def masked_part(part: str, typed: dict) -> str:
+    if typed.get("secret") and part == typed.get("value"):
+        return REDACTED
+    if re.match(r"(?i)^[a-z][a-z0-9+.-]*://", part) or re.match(r"(?i)^(localhost|[\w-]+(\.[\w-]+)+)(:\d+)?/.*[?#]", part):
+        return shown_url(normalize_url(part))
+    return part
+
+
+def shown_command(step: dict) -> list[str]:
     typed = step.get("typed") or {}
-    shown = [("<redacted>" if typed.get("secret") and part == typed.get("value") else part) for part in command]
+    return [masked_part(part, typed) for part in step.get("replay") or step["command"]]
+
+
+def step_line(step: dict) -> list[str]:
     status = "" if step.get("ok", True) else f"  ✗ {step.get('error') or 'failed'}"
-    lines = [f"[{step['seq']}] {' '.join(shown)}  → {masked_url(step.get('url') or '') if step.get('url') else '(no page)'}{status}"]
+    lines = [f"[{step['seq']}] {' '.join(shown_command(step))}  → {shown_url(step.get('url') or '') if step.get('url') else '(no page)'}{status}"]
     for request in step.get("requests") or []:
         kind = request.get("kind") or "json"
         body = "" if body_value(request) is not None else " (body dropped)"
-        lines.append(f"    {request['id']} {request['method']} {masked_url(request['url'])} {request.get('status')} {kind}{body}")
+        lines.append(f"    {request['id']} {request['method']} {shown_url(request['url'])} {request.get('status')} {kind}{body}")
     for write in step.get("writes") or []:
-        lines.append(f"    write: {write['method']} {masked_url(write['url'])} {write.get('status') or 'pending'}")
+        lines.append(f"    write: {write['method']} {shown_url(write['url'])} {write.get('status') or 'pending'}")
     if step.get("why"):
         lines.append(f"    not replayable: {step['why']}")
     return lines
@@ -797,14 +1021,10 @@ def step_line(step: dict) -> list[str]:
 
 def steps_result(log: flowlog.Log, everything: bool) -> Result:
     steps = [step for step in log.steps if everything or step["seq"] > log.saved_through]
-    rows = [{"seq": step["seq"], "command": step.get("replay") or step["command"], "url": step.get("url"), "ok": step.get("ok", True),
-             "requests": [{"id": request["id"], "method": request["method"], "url": request["url"], "status": request.get("status"),
+    rows = [{"seq": step["seq"], "command": shown_command(step), "url": shown_url(step["url"]) if step.get("url") else None, "ok": step.get("ok", True),
+             "requests": [{"id": request["id"], "method": request["method"], "url": shown_url(request["url"]), "status": request.get("status"),
                            "kind": request.get("kind")} for request in step.get("requests") or []],
              "writes": len(step.get("writes") or [])} for step in steps]
-    for row, step in zip(rows, steps):
-        typed = step.get("typed") or {}
-        if typed.get("secret"):
-            row["command"] = [REDACTED if part == typed.get("value") else part for part in row["command"]]
     lines = [line for step in steps for line in step_line(step)]
     if log.dropped:
         lines.insert(0, f"({log.dropped} older steps dropped)")
@@ -814,20 +1034,18 @@ def steps_result(log: flowlog.Log, everything: bool) -> Result:
 
 
 def save_text(name: str, path: Path, flow: dict, report: dict) -> str:
-    from ardia_cli.browse.changes import masked_url
-
     lines = [f"✓ Saved flow {name} for {flow['site']} ({path})"]
     for request in report["requests"]:
         mark = " ← output" if request["id"] == report["output"] else ""
         detail = f", list {request['list']}" if request.get("list") else ""
-        lines.append(f"  {request['id']} {request['method']} {masked_url(request['url'])} ({request['kind']}{detail}){mark}")
+        lines.append(f"  {request['id']} {request['method']} {shown_url(request['url'])} ({request['kind']}{detail}){mark}")
     for param in report["params"]:
         how = f"recorded {param['example']}" if param.get("example") else "no recorded value: runs pass it"
         lines.append(f"  param {param['name']} ({param['source']}; {how})")
     if not report["params"]:
         lines.append("  no params: name a typed or URL value with --param k=v to make one")
     for write in report["writes"]:
-        lines.append(f"  write {write['id']}: {write['method']} {masked_url(write['url'])} ({write['kind']}); runs need --allow-write {write['id']}")
+        lines.append(f"  write {write['id']}: {write['method']} {shown_url(write['url'])} ({write['kind']}); runs need --allow-write {write['id']}")
     for step in report["notReplayable"]:
         lines.append(f"  step {step['seq']} can't be replayed: {step['why']}")
     if report["redactedSteps"]:

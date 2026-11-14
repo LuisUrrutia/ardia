@@ -785,9 +785,12 @@ tier or MCP tools.
   XHR, fetch and document answers with a 2xx status, JSON or HTML, under 2 MB each, at most 2 s in all
   (`Network.getResponseBody`, and `Network.getRequestPostData` for a write's body). A document is kept only when a
   `<script>` holds JSON: `type="application/json"`, `__NEXT_DATA__`, JSON-LD, or a plain `window.x = {...}`. Bodies
-  stay under 16 MB per session (the oldest are dropped first). Writes (any method but `GET`, `HEAD`, `OPTIONS`,
-  except GraphQL queries; a `GET` whose path has a `logout`, `signout`, `unsubscribe`, `delete` or `remove`
-  segment) are noted with their method and URL. `--no-changes` records the step without its requests. A ref in a
+  stay under 16 MB per session (the oldest are dropped first). Writes are noted with their method and URL: every
+  method but `GET` and `HEAD`, except a `POST` whose JSON body is GraphQL and nothing else (`query`, `variables`,
+  `operationName`, `extensions`) with every operation a query once comments and strings are stripped (a mutation or
+  subscription anywhere, or a body that doesn't parse, is a write); and a `GET` whose decoded path, query key or
+  query value has the word `logout`, `signout`, `unsubscribe`, `delete`, `remove` or `destroy` (or, in a query
+  value, `mutation` or `subscription`). A write whose body can't be read whole is noted, and its request is never kept. `--no-changes` records the step without its requests. A ref in a
   command is kept as the role and name it pointed at (`find role button click --name Save --exact`), so the replay
   doesn't depend on refs. After a typing command it reads the focused field once: a password field, an
   `autocomplete` of `current-password`, `new-password`, `one-time-code` or `cc-*`, a name, id, label, placeholder or
@@ -795,26 +798,34 @@ tier or MCP tools.
   password) makes the value a secret.
 - **`flow steps [--all]`** lists the steps since the last save (`[3] click #go → <url>`, then each kept request as
   `s3r1 GET <url> 200 json` and each write), with query values that look like credentials masked as in change
-  reports. `--json` has `data.steps`.
+  reports, plus every query value that looks like a credential, an email, a phone number or a token, in the command
+  words, page URLs and request URLs alike, text and `--json` (`data.steps`).
 - **`flow save <name> [--from n] [--to n] [--param k=v]… [--output s3r1] [--description text]`** saves steps from the
   last `open` after the previous save to the latest (or `--from`/`--to`). It keeps the requests on the start page's
   base domain whose answer was JSON (or a document's largest JSON block, found again by its `id` or position), and
   for each: method, URL, the `content-type`, `accept` and `x-requested-with` headers only, the body, and the answer's
   status, MIME type, size, shape (keys and value types, 6 levels deep, first list item only), main list and its item
-  fields. Params: every value typed into an ordinary field becomes `{{name}}` (named after the field's name, id or
-  label) wherever it appears in the commands, a request's path segments, query values and JSON strings or form
+  fields (only names of up to 24 letters, digits and `_`, dotted once). Params: every value typed into an ordinary field
+  becomes `{{name}}` (named after the field's name, id or label when that is a short identifier,
+  `[a-z][a-z0-9_]{0,23}`, else `p1`, `p2`, …) wherever it appears in the commands, a request's path segments, query values and JSON strings or form
   values (whole value, or inside a longer one when 3 or more characters; never in a GraphQL operation's text), with
   no copy of the value kept, so a run must pass it; `--param k=v` names a typed value and keeps it as the example;
   a query value of the start or an opened URL that a request also sent becomes a param with its example (tracking
   keys like `utm_*` and credential-like keys excluded). `--output` defaults to the largest answer among requests
   that use a param, else the largest.
-- **What a flow never keeps.** Cookies, `Authorization` and any header whose name says token, CSRF, XSRF, API key,
-  secret, session, signature or auth (the request is marked `strippedAuth`). A secret typed value: the command keeps
-  `<redacted>`, the step is listed in `redactedSteps`, any request that sent the value (as typed, percent-encoded,
-  form-encoded or JSON-escaped) is left out, and the flow is marked not replayable. In the start URL, opened URLs,
-  request URLs and writes, the value of a credential-like query key (`token`, `key`, `sig`, `session`, `password`,
-  …) becomes `<redacted>` (a step holding one is redacted too), user info and a `#k=v` fragment are dropped. Request
-  bodies over 64 KB are dropped.
+- **What a flow never keeps** (when in doubt, the request is left out and the save report says why). Cookies,
+  `Authorization` and any header whose name says token, CSRF, XSRF, API key, secret, session, signature or auth (the
+  request is marked `strippedAuth`). A secret typed value: the command keeps `<redacted>`, the step is listed in
+  `redactedSteps`, any request that sent the value (as typed, percent-encoded, form-encoded, JSON-escaped, base64 or
+  hex) is left out, and the flow is marked not replayable. A request body is kept only when it is JSON or a form whose
+  every value is a param, `true`/`false`/`null`, a number under 10,000 or a short word (letters, `_`, `.`, `-`, up to
+  32), no credential-named field has a value, and a GraphQL operation's text holds no string literal or 5-digit
+  number; any other body, and a body over 64 KB, leaves the request out. A request whose decoded path has a
+  credential word (`sessions`, `token`, …), a `:`, a 20-character mix of letters and digits, an email, a phone number
+  or an address, or whose query values hold one of the last four, is left out. In the start URL and opened URLs the
+  value of a credential-like query key, or one that looks personal or like a token, becomes `<redacted>` (the step is
+  then redacted), user info and a `#k=v` fragment are dropped. Each step's page URL keeps only its path (typed
+  values templated) and query keys (`?q=…`). Examples are never kept for values that look personal or like a token.
 - **Storage.** `<data dir>/Flows/<site>/<name>.json`, where `<site>` is the start URL's base domain (`example.com`
   for `shop.example.com`, `example.co.uk` for `www.example.co.uk`, an IP or `localhost` as is) plus a non-default
   port. Folders are 0700 and must be real folders the user owns, files 0600, opened relative to the folder with
@@ -822,9 +833,15 @@ tier or MCP tools.
   `name`, `description`, `site`, `origin`, `startUrl`, `hosts` (the hosts its requests went to), `createdAt`,
   `createdBy`, `params` (`{name, example, source}`, source `typed`, `given` or `query`), `output`, `verified`,
   `replayable`, `redactedSteps`, `writes` (`{id, method, url, kind, step, request}`) and `steps` (`{seq, command,
-  url, ok, requests}`, each request `{id, method, url, headers, body, bodyType, kind, expect}`). An unknown field,
-  another version, a site or name that doesn't match where the file sits, a host off the site, or a missing output
-  request fails with `code: "flow_invalid"`.
+  url, ok, requests}`, each request `{id, method, url, headers, body, bodyType, kind, expect}`). Loading fails with
+  `code: "flow_invalid"` for an unknown field, another version, a site or name that doesn't match where the file sits,
+  an `origin` that isn't the start URL's, a host (in `hosts`, a request or a write) off the site's base domain, a
+  loopback, private or link-local host unless the flow was recorded on that very host, a request to a host `hosts`
+  doesn't list, a param name or item field that isn't a short identifier, a description over 120 characters or
+  with a line break, a step command other than `open` (on the site), `click`, `dblclick`, `fill`, `type`, `press`,
+  `keyboard type|inserttext`, `select`, `check`/`uncheck`, `find` (with one of its actions), `back`/`forward`/`reload`,
+  `scroll`, `scrollintoview`, `hover`, `focus` and `wait` (no `--fn`), a flag beyond `--name`, `--exact`,
+  `--partial`, `--text`, `--url`, `--load`, `--timeout`, `--state` and `--no-humanize`, or a missing output request.
 - **`flow run <name> [--param k=v]… [--fields a,b.c] [--where f=v]… [--limit n] [--allow-write all|w1,…] [--tier
   page|replay] [--site s] [--timeout 60s]`.** Unknown params fail with the list of real ones; a param with no
   example must be given. Values are encoded for where they land (path segment, query, form, JSON string; a line break
@@ -832,13 +849,16 @@ tier or MCP tools.
   `hosts` on its site isn't sent (`off_site`). Tiers, in order, sharing one clock (`--timeout`, 60 s):
   1. **page**: the request is sent with `fetch` (`credentials: "include"`, `cache: "no-store"`) from the session's
      tab when it is on the request's origin, else from a temporary background tab that first loads the start URL (or
-     the origin's `/`) and must land on that origin. Cookies stay in Ardia. A read follows redirects and fails if it
-     ends off the site; a write uses `redirect: "manual"`.
+     the origin's `/`) and must land on that origin. Cookies stay in Ardia. It never follows a redirect
+     (`redirect: "manual"`, so nothing past the recorded host is contacted): a redirected read goes on to the replay,
+     a redirected write is `outcome_unknown`.
   2. **replay**: the recorded commands run again in a temporary background tab, with the params filled in, stopping
      when the tab leaves the site; the answer is the replayed request with the same method, host, path and recorded
      query values (extra ones, like cache-busters, are ignored). Where background tabs don't take input, it runs in
      the session's own tab (one it opened, not the user's) when that tab does, and says so. Skipped when the flow
-     isn't replayable or replaying would send a write `--allow-write` doesn't cover.
+     isn't replayable or replaying would send a write `--allow-write` doesn't cover. After every command it checks
+     the first-party writes the replay sent: one the recording doesn't list (method, host and path) stops the run with
+     `outcome_unknown`, naming them, and so does a replay that sent any write and then failed or ran out of time.
   There is no direct-HTTP tier: it would need the cookies through `Network.getCookies`, which the token policy
   refuses (see Gated), and the page tier gets the same answer without cookies leaving Ardia.
 - **Checks.** Every answer is compared with the recorded shape: a missing key, a changed type, or the main list gone
@@ -850,16 +870,20 @@ tier or MCP tools.
   4xx is `http_error`, a 5xx or network error goes to the next tier.
 - **Writes.** A flow whose output request is a write sends it only with `--allow-write <id>` (or `all`); without it
   nothing is sent and the run fails with `write_not_allowed`. A write is sent at most once: no answer, a redirect, a
-  408 or 5xx, or a 2xx that isn't JSON is `outcome_unknown` and no other tier sends it; a 4xx refusal lets the next
-  tier try. A request that becomes a write only once its params are filled in isn't sent.
+  408 or 5xx, a 2xx that isn't JSON or is too large to read, or any network error is `outcome_unknown` and no other
+  tier sends it; a 4xx refusal lets the next tier try. A 2xx JSON answer of another shape is returned with
+  `verified: false` and the file is marked unverified. A request that becomes a write only once its params are filled
+  in isn't sent.
 - **Output.** The answer's main list (the body if it's a list, else its heaviest list of objects, at any depth) as
   `{list, total, matched, items}` after `--where` (case-insensitive contains, dotted paths, all must match),
   `--limit` and `--fields`; a field no item has fails with `unknown_field` and the items' fields. An answer with no
-  list comes back as `value`. Text output is a header (`✓ search via page: 2 of 3 items in results`) and one JSON
+  list comes back as `value`. The list is the one at the path the recording saw, so a list that is now empty gives
+  zero items. Text output is a header (`✓ search via page: 2 of 3 items in results`) and one JSON
   line per item; `data` has `tier`, `verified`, `fellBack` (`{tier, why}`) and `result`.
 - **Discovery.** When `open` lands on a site, or `snapshot` runs on it, with saved flows, the answer starts with
-  `# saved flows for <site> (…): name(params) — description; …` (up to five), once per site per session (a session
-  that saved a flow there doesn't get it). It follows the site's notes; `snapshot --json` has it in `data.flows`.
+  `# saved flows for <site> (…): name(params) [saved description: "…"]; …` (up to five, the description quoted and
+  cut at 80 characters, since a page could have shaped it), once per site per session (a session that saved a flow
+  there doesn't get it). `flow list` and `flow show` count as page content too (`--content-boundaries`). It follows the site's notes; `snapshot --json` has it in `data.flows`.
 - **`flow list [site]`, `flow show <name> [--site s]`, `flow rm <name> [--site s]`** run without the browser; a name
   saved for several sites needs `--site`.
 

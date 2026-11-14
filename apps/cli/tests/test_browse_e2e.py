@@ -461,10 +461,10 @@ class BrowseEndToEnd(unittest.TestCase):
         elsewhere = json.loads(self.browse("flow", "run", "search", "--param", "q=kettle", "--json", session="flows-other").stdout)["data"]
         self.assertEqual((elsewhere["tier"], elsewhere["result"]["total"]), ("page", 2))
         hinted = self.browse("open", self.url("flowsearch.html"), session="flows-other").stdout
-        self.assertIn(f"# saved flows for {site} (`ardia browse flow run <name> --param k=v`, `flow show <name>`): search(q) — Search the fixture shop",
+        self.assertIn(f"# saved flows for {site} (`ardia browse flow run <name> --param k=v`, `flow show <name>`): search(q) [saved description: \"Search the fixture shop\"]",
                       hinted)
         self.assertNotIn("# saved flows", self.browse("snapshot", "-i", session="flows-other").stdout)
-        self.assertIn(f"{site}  search(q) — Search the fixture shop", self.browse("flow", "list", session=session).stdout)
+        self.assertIn(f'{site}  search(q) [saved description: "Search the fixture shop"]', self.browse("flow", "list", session=session).stdout)
         replayed = json.loads(self.browse("flow", "run", "search", "--param", "q=toaster", "--tier", "replay", "--json", session=session).stdout)["data"]
         self.assertEqual((replayed["tier"], replayed["result"]["total"]), ("replay", 3))
         self.assertEqual(self.browse("flow", "steps", session=session).stdout, "Nothing recorded since the last save\n")

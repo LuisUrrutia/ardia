@@ -34,5 +34,6 @@ ardia browse flow run search --param q=toaster --fields title,price --limit 5
 | `write_not_allowed` | the flow sends a POST or other write: rerun with `--allow-write <id>` only if the user wants it sent |
 | `outcome_unknown` | a write may have gone out: check the site before anything else |
 
-Flows never store cookies, auth headers or what was typed into a password, card or code field; a flow that needed one
-replays only through the page.
+Flows never store cookies, auth headers, what was typed into a password, card or code field, or a request body
+holding anything but params, small numbers and short words; such a request is left out and the save report says why.
+Do that task in the page instead.

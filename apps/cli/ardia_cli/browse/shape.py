@@ -128,8 +128,9 @@ def pick(item, names: list[str]) -> dict:
     return out
 
 
-def apply(body, shape: Shape, always: bool = False):
-    found = main_list(body)
+def apply(body, shape: Shape, always: bool = False, path: str | None = None):
+    at = lookup(body, path) if path else MISSING
+    found = (path, at) if isinstance(at, list) else main_list(body)
     if found is None:
         if shape.empty and not always:
             return body
