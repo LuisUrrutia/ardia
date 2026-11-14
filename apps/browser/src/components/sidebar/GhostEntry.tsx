@@ -15,11 +15,12 @@ import { pointerOnGroup, pointerOnRow } from "../../state/sidebar/hover";
 import { FaviconFallback, NewTabIcon } from "../favicon/Favicon";
 import { TabIcon } from "./TabIcon";
 import { iconSymbol } from "../../lib/customIcon";
+import { drawnIcon, hidesRowIcon } from "../../state/pins/rowIcons";
 import { groupBoxAtRest, groupSurface, SIDEBAR_TYPE, TAB_ROW, TABULAR_NUMS, useSidebarTokens } from "./tokens";
 import { SidebarRowLabel } from "./SidebarRow";
 import { entryKey, parseEntry } from "../../state/sidebar/entryKey";
 
-type TabShot = { kind: "tab"; key: string; title: string; url: string; favicon?: string | null; icon?: string | null; profileId: string; uri: string | null; template: boolean; sound: "muted" | "playing" | null; hovered: boolean };
+type TabShot = { kind: "tab"; key: string; title: string; url: string; favicon?: string | null; icon?: string | null; textOnly: boolean; profileId: string; uri: string | null; template: boolean; sound: "muted" | "playing" | null; hovered: boolean };
 type SplitShot = { kind: "split"; key: string; panes: TabShot[] };
 type GroupShot = {
   kind: "group";
@@ -36,7 +37,7 @@ export type EntrySnapshot = TabShot | SplitShot | GroupShot;
 function tabShot(s: BrowserState, tabId: string, hovered: boolean): TabShot | null {
   const tab = s.tabs[tabId];
   if (!tab) return null;
-  const uri = tab.customIcon ? null : (resolveFavicon(tab.url, tab.favicon, tab.profileId)?.uri ?? null);
+  const uri = drawnIcon(tab.customIcon) ? null : (resolveFavicon(tab.url, tab.favicon, tab.profileId)?.uri ?? null);
   const shape = uri ? knownFaviconTheme(uri) : null;
   return {
     uri,
@@ -46,7 +47,8 @@ function tabShot(s: BrowserState, tabId: string, hovered: boolean): TabShot | nu
     title: tabTitle(tab),
     url: tab.url,
     favicon: tab.favicon,
-    icon: tab.customIcon,
+    icon: drawnIcon(tab.customIcon),
+    textOnly: hidesRowIcon(tab),
     profileId: tab.profileId,
     sound: isSilenced(s, tab) ? "muted" : s.live[tabId]?.playingAudio ? "playing" : null,
     hovered,
@@ -101,12 +103,12 @@ function tabGhost(shot: TabShot, theme: ReturnType<typeof useTheme>, top = 0) {
         borderRadius: radius.chrome,
         flexDirection: "row",
         alignItems: "center",
-        paddingLeft: TAB_ROW.contentLeft,
+        paddingLeft: shot.textOnly ? TAB_ROW.contentLeft - TAB_ROW.titleGap : TAB_ROW.contentLeft,
         paddingRight: shot.hovered ? TAB_ROW.trailing : TAB_ROW.trailing + TAB_ROW.closeSlot,
         backgroundColor: shot.hovered ? theme.tabHover : undefined,
       }}
     >
-      {ghostIcon(shot, theme)}
+      {shot.textOnly ? null : ghostIcon(shot, theme)}
       {shot.sound ? <Symbol name={shot.sound === "muted" ? "speaker.slash" : "speaker.wave.2"} size={12} color={theme.textTab} style={{ width: 18, height: 16, marginLeft: space.s }} /> : null}
       <SidebarRowLabel text={shot.title} color={theme.textTab} />
       {shot.hovered ? <Symbol name="xmark" size={10} weight="semibold" color={theme.icon} style={{ width: TAB_ROW.closeSlot, height: TAB_ROW.closeSlot }} /> : null}

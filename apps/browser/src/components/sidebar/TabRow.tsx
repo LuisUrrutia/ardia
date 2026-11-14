@@ -4,13 +4,14 @@ import { toggleMute } from "../../state/browser/actions";
 import { hex, layout, useTheme } from "../ui/theme";
 import { useIsActiveTab, usePageProfileId, useTab, useWindow, useWindowId } from "../../state/browser/hooks";
 import { returnToPinnedUrl } from "../../state/pins/actions";
-import { useSplitRowPanes } from "../../state/sidebar/hooks";
+import { useSplitRowPanes, useTabBadged } from "../../state/sidebar/hooks";
 import { muteTitle } from "../../state/tabs/mute";
 import { usePictureInPicture } from "../../state/media/media";
 import { HoverSlot } from "../ui/HoverSlot";
 import { ActivitySpinner, Button, Divider, FadeLabel, ink, OutsidePressArea, radius, sidebarFont, sidebarLineHeight, space, Symbol, typeFace, useHover, withAlpha } from "../ui";
 import { isPinnedRow, tabTitle } from "../../state/browser/model";
 import { awayFromPin, awayTitle } from "../../state/pins/organize";
+import { hidesRowIcon } from "../../state/pins/rowIcons";
 import { commitRename, endRename, startRename } from "../../state/sidebar/actions";
 import { useDragItem, useDropOnto } from "./DragProvider";
 import { useShift, type EntryMotion } from "./EntryMotion";
@@ -80,6 +81,7 @@ export const TabRow = memo(function TabRow({
   const closeControl = useTabCloseControlWhile(tabId, hovered && !renaming);
   const { backToPinHint, quiet } = useSidebarRowLook();
   const unread = useTabUnread(tabId);
+  const badged = useTabBadged(tabId);
   const [unreadDrawn, setUnreadDrawn] = useState(false);
   const showsUnread = !!unread || unreadDrawn;
   const resettable = !!tab && (isPinnedRow(tab) || !tab.pin) && awayFromPin(tab);
@@ -89,6 +91,7 @@ export const TabRow = memo(function TabRow({
   const resetting = resettable && backToPin.hovered && !renaming;
   const title = resetting ? "Back to Pinned URL" : tab.customTitle ? tabTitle(tab) : titleWithoutUnread(tabTitle(tab), unread);
   const away = resettable && !resetting ? awayTitle(tab) : null;
+  const textOnly = hidesRowIcon(tab, badged);
   const fill = quiet
     ? active ? tokens.quietWash : selected ? tokens.multiSelected : hovered ? tokens.quietHover : ink.clear
     : active ? theme.tabSelected : selected ? tokens.multiSelected : hovered ? theme.tabHover : ink.clear;
@@ -111,10 +114,10 @@ export const TabRow = memo(function TabRow({
             selected={active && !quiet}
             border={border}
             stroke={selected && !active ? tokens.multiSelectedStroke : undefined}
-            padLeft={TAB_ROW.contentLeft - border}
+            padLeft={(textOnly ? TAB_ROW.contentLeft - TAB_ROW.titleGap : TAB_ROW.contentLeft) - border}
             padRight={TAB_ROW.trailing - border}
           >
-            <View {...backToPin.hoverProps}>
+            <View {...backToPin.hoverProps} style={textOnly ? NO_SLOT : undefined}>
               {resettable ? (
                 <Pressable
                   onPress={() => returnToPinnedUrl(tab.id)}
@@ -180,6 +183,7 @@ export const TabRow = memo(function TabRow({
 });
 
 const AWAY_FRAME = { flex: 1, marginLeft: TAB_ROW.titleGap } as const;
+const NO_SLOT = { display: "none" } as const;
 
 function StatusIconButton({ icon, color, tooltip, onPress }: { icon: string; color: string; tooltip: string; onPress: (event: GestureResponderEvent) => void }) {
   const pressMotion = usePressScaleMotion(true, buttonMotion.iconPressScale);
