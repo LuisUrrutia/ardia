@@ -1,13 +1,13 @@
 import type { MenuBookmark, MenuState } from "../../platform/commands";
 import { engineBookmarkRoots, folderChildren, isBookmarked, isWithin, ROOT_TITLES } from "../bookmarks/bookmarks";
 import type { BrowserState } from "../browser/store";
-import { noRecordReads, recordReadsChanged, trackedRecord, type RecordReads } from "../browser/recordReads";
+import { changedIds } from "../browser/changes";
 import { activeTab, bookmarkProfileId, engineProfile, IDLE_LIVE, isPinnedRow, tabLabel, togglePinTitle, windowTitle, tabLayoutOf, tabsShownIn } from "../browser/model";
 import { canSwitchEngine, tabEngine } from "../engines/engines";
 import { peekTabId } from "../peek/peek";
 import { splitOf } from "../splits/splits";
 import { canGoBack, canGoForward } from "../tabs/navigation";
-import type { Bookmarks, BookmarkNode } from "../browser/types";
+import type { Bookmarks, BookmarkNode, Tab } from "../browser/types";
 import { isInternalTab } from "../pages/urls";
 import { muteState, muteTitle } from "../tabs/mute";
 import { sidebarMenuState } from "../sidebar/commands";
@@ -142,32 +142,50 @@ export function menuState(s: BrowserState): MenuState {
     extensions: extensionMenu(s, windowId) };
 }
 
-const TRACKED_RECORDS = ["tabs", "live"] as const;
-type TrackedRecord = (typeof TRACKED_RECORDS)[number];
-const trackedRecordName = (key: unknown) => TRACKED_RECORDS.find((name) => name === key);
-
-export type MenuReads = { keys: ReadonlySet<keyof BrowserState>; records: Readonly<Record<TrackedRecord, RecordReads>> };
+export type MenuReads = ReadonlySet<keyof BrowserState>;
 
 export function trackedMenuState(s: BrowserState): { state: MenuState; reads: MenuReads } {
-  const keys = new Set<keyof BrowserState>();
-  const records = { tabs: noRecordReads(), live: noRecordReads() };
-  const proxies: Partial<Record<TrackedRecord, object>> = {};
+  const reads = new Set<keyof BrowserState>();
   const tracked = new Proxy(s, {
     get(target, key, receiver) {
-      if (typeof key === "string") keys.add(key as keyof BrowserState);
-      const record = trackedRecordName(key);
-      if (record) return (proxies[record] ??= trackedRecord<object>(target[record], records[record]));
+      if (typeof key === "string") reads.add(key as keyof BrowserState);
       return Reflect.get(target, key, receiver);
     },
   });
-  return { state: menuState(tracked), reads: { keys, records } };
+  return { state: menuState(tracked), reads };
+}
+
+export const HIDDEN_TAB_FIELDS_IN_MENU = ["id", "windowId", "profileId", "pin"] as const satisfies readonly (keyof Tab)[];
+
+function shownOrSelected(s: BrowserState, tab: Tab): boolean {
+  const w = s.windows[tab.windowId];
+  if (!w) return true;
+  for (const profile in w.activeTabIds) if (w.activeTabIds[profile] === tab.id) return true;
+  return s.peeks[tab.windowId]?.tabId === tab.id || !!s.selection[tab.windowId]?.includes(tab.id);
+}
+
+function tabsChangedForMenu(s: BrowserState, prev: BrowserState): boolean {
+  for (const id of changedIds(s.tabs, prev.tabs)) {
+    const now = s.tabs[id];
+    const was = prev.tabs[id];
+    if (!now || !was || shownOrSelected(s, now)) return true;
+    for (const field of HIDDEN_TAB_FIELDS_IN_MENU) if (now[field] !== was[field]) return true;
+  }
+  return false;
+}
+
+function liveChangedForMenu(s: BrowserState, prev: BrowserState): boolean {
+  for (const id of changedIds(s.live, prev.live)) {
+    const tab = s.tabs[id];
+    if (tab && shownOrSelected(s, tab)) return true;
+  }
+  return false;
 }
 
 export function menuInputsChanged(reads: MenuReads, s: BrowserState, prev: BrowserState): boolean {
-  for (const key of reads.keys) {
+  for (const key of reads) {
     if (s[key] === prev[key]) continue;
-    const record = trackedRecordName(key);
-    if (!record || recordReadsChanged<object>(reads.records[record], s[record], prev[record])) return true;
+    if (key === "tabs" ? tabsChangedForMenu(s, prev) : key === "live" ? liveChangedForMenu(s, prev) : true) return true;
   }
   return false;
 }

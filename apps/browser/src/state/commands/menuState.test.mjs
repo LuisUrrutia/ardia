@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 const { useBrowser } = await import("../browser/store.ts");
 const model = await import("../browser/model.ts");
-const { menuInputsChanged, menuState, trackedMenuState } = await import("./menuState.ts");
+const { menuInputsChanged, menuState, trackedMenuState, HIDDEN_TAB_FIELDS_IN_MENU } = await import("./menuState.ts");
+const { noRecordReads, trackedRecord } = await import("../browser/recordReads.ts");
 
 const S = () => useBrowser.getState();
 const menuJson = (s) => JSON.stringify(menuState(s));
@@ -46,9 +47,9 @@ test("the reads cover every top-level field the menu used, including through its
   S().createWindow({ url: "https://a.example/" });
   const { reads } = trackedMenuState(S());
   for (const field of ["windows", "tabs", "live", "settings", "closedTabs", "closedWindows", "closedGroups", "bookmarks", "profiles", "profileOrder", "downloads", "ui"]) {
-    assert.ok(reads.keys.has(field), field);
+    assert.ok(reads.has(field), field);
   }
-  assert.equal(reads.keys.has("history"), false);
+  assert.equal(reads.has("history"), false);
 });
 
 function menuChanges(step) {
@@ -115,4 +116,30 @@ test("whatever changes in tabs and their live state, a menu that isn't rebuilt i
     if (!menuChanges(() => step(id))) kept++;
   }
   assert.ok(kept > 100, `only ${kept} of 600 steps left the menu alone`);
+});
+
+test("of a tab that isn't shown or selected, the menu reads only the fields a change is checked against, and none of its live state", () => {
+  S().hydrate({});
+  const windows = [S().createWindow({ url: "https://a.example/" }), S().createWindow({ url: "file:///tmp/notes.txt" })];
+  for (const w of windows) for (let i = 0; i < 4; i++) S().newTab(w, { url: `https://${i}.example/`, background: true });
+  const ids = S().windows[windows[0]].tabIds;
+  S().updateTab(ids[1], { pin: { as: "row" }, pinnedUrl: "https://elsewhere.example/" });
+  S().updateTab(ids[2], { pin: { as: "tile" }, muted: true });
+  S().updateLive(ids[3], { isLoading: true, canGoBack: true });
+  for (const [focused, selection] of [[windows[0], []], [windows[1], []], [windows[0], [ids[0], ids[3]]]]) {
+    S().setFocusedWindow(focused);
+    S().setSelection(windows[0], selection);
+    const s = S();
+    const tabs = noRecordReads();
+    const live = noRecordReads();
+    menuState({ ...s, tabs: trackedRecord(s.tabs, tabs), live: trackedRecord(s.live, live) });
+    const shown = new Set([...Object.values(s.windows).flatMap((w) => Object.values(w.activeTabIds)), ...(s.selection[windows[0]] ?? [])]);
+    assert.equal(tabs.enumerated, false, "the menu listed every tab: a hidden tab's change would have to rebuild it");
+    for (const [id, fields] of tabs.entries) {
+      if (shown.has(id)) continue;
+      assert.notEqual(fields, null, `${id} was read whole`);
+      for (const field of fields) assert.ok(HIDDEN_TAB_FIELDS_IN_MENU.includes(field), `the menu read a hidden tab's ${field}`);
+    }
+    for (const id of live.entries.keys()) assert.ok(shown.has(id), `the menu read a hidden tab's live state (${id})`);
+  }
 });
