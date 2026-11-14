@@ -126,6 +126,7 @@ export const SETTING_SPECS = {
   sidebarTextSize: oneOf(SIDEBAR_TEXT_SIZES, "default"),
   sidebarTextContrast: oneOf(["auto", "standard", "high"], "auto", SYNCED),
   selectedTopApp: oneOf(["ring", "fill", "outline"], "ring", SYNCED),
+  elementOutlines: flag(true, SYNCED),
   interfaceStyle: oneOf(["glass", "classic"], "glass", SYNCED),
   glassTintWithTheme: flag(false, SYNCED),
   glassTintAmount: fraction(0.8, SYNCED),

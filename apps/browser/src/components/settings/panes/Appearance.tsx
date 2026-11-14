@@ -74,7 +74,7 @@ function InterfaceStylePicker() {
   const style = useSettings((s) => s.interfaceStyle);
   const tinted = useSettings((s) => s.glassTintWithTheme);
   const tintAmount = useSettings((s) => s.glassTintAmount);
-  if (!liquidGlass) return null;
+  if (!liquidGlass) return <OutlinesSection />;
   return (
     <>
       <SectionHeader anchor="appearance.interfaceStyle" />
@@ -95,9 +95,18 @@ function InterfaceStylePicker() {
             </View>
           </Row>
         ) : null}
+        <SettingToggle anchor="appearance.elementOutlines" />
         </Group>
       </Box>
     </>
+  );
+}
+
+function OutlinesSection() {
+  return (
+    <Group>
+      <SettingToggle anchor="appearance.elementOutlines" />
+    </Group>
   );
 }
 

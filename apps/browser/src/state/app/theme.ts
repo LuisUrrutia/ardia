@@ -29,5 +29,5 @@ export function useSelectedTabGlowSetting() {
 }
 
 export function useSelectedTopApp() {
-  return useBrowser((s) => s.settings.selectedTopApp);
+  return useBrowser((s) => (s.settings.elementOutlines ? s.settings.selectedTopApp : "fill"));
 }

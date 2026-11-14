@@ -56,6 +56,11 @@ export const appearanceRows = {
           keywords: ["liquid glass", "tint", "strength", "intensity", "colour", "color", "glossy"],
           shown: (s, env) => !!env.glass && s.interfaceStyle === "glass" && s.glassTintWithTheme,
         },
+        elementOutlines: {
+          title: "Outlines around tiles and fields",
+          description: "Off drops the thin edge around pinned tiles, Top Apps, the address field and the top strip's chips, and the coloured ring on the selected Top App, for a flatter look like Arc's. On is Dia's.",
+          keywords: ["outline", "outlines", "border", "borders", "edge", "stroke", "ring", "flat", "arc", "pinned tiles", "top apps", "address field", "clean"],
+        },
       },
     },
     {
@@ -155,6 +160,7 @@ export const appearanceRows = {
           title: "Selected Top App",
           description: "How the selected pinned tile shows. Ring is Dia's: a coloured ring around a filled tile. Fill only drops the ring; Outline only keeps the ring around a clear tile.",
           keywords: ["ring", "outline", "outlined", "border", "fill", "filled", "top apps", "pinned tile", "pinned tab", "selected tile", "active tile", "white ring", "classic"],
+          shown: (s) => s.elementOutlines,
         },
       },
     },

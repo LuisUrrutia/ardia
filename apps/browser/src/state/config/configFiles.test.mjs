@@ -296,3 +296,24 @@ test("a theme's sidebarWidth resizes the sidebar when it changes after launch, n
   resetSidebarWidth();
   assert.equal(S().settings.sidebarWidth, 190);
 });
+
+test("turning outlines off clears the outline role in both appearances, over a theme's own, and on again restores it", () => {
+  fresh();
+  startConfigFiles(colorRoles);
+  assert.equal(useBasePalette.getState().palette, null);
+  S().updateSettings({ elementOutlines: false });
+  const off = useBasePalette.getState().palette;
+  assert.equal(off.dark.pinnedRestingStroke, "#00000000");
+  assert.equal(off.light.pinnedRestingStroke, "#00000000");
+  assert.equal(off.dark.accent, colorRoles.dark.accent);
+  writeConfig({ theme: "edged" });
+  files.set("themes/edged.json", JSON.stringify({ dark: { pinnedRestingStroke: "#FF0000", accent: "#88C0D0" } }));
+  reconcileConfig();
+  assert.equal(useBasePalette.getState().palette.dark.pinnedRestingStroke, "#00000000");
+  assert.equal(useBasePalette.getState().palette.dark.accent, "#88C0D0");
+  S().updateSettings({ elementOutlines: true });
+  assert.equal(useBasePalette.getState().palette.dark.pinnedRestingStroke, "#FF0000");
+  writeConfig({ theme: null });
+  reconcileConfig();
+  assert.equal(useBasePalette.getState().palette, null);
+});
