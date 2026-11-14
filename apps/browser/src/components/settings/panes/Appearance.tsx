@@ -128,6 +128,7 @@ function AddressBarPicker() {
   const placement = useSettings((s) => s.commandBarPlacement);
   const compactToolbar = useSettings((s) => s.compactToolbar);
   const buttons = useSettings((s) => s.addressBarButtons);
+  const translateButton = useSettings((s) => s.showTranslateButton);
   const topTabs = useTabLayout() === "top";
   const choose = (value: Settings["addressBar"]) => updateSettings({ addressBar: value });
   return (
@@ -170,6 +171,9 @@ function AddressBarPicker() {
             onChange={(v) => updateSettings({ addressBarButtons: v })}
             minWidth={160}
           />
+        </Row>
+        <Row anchor="appearance.showTranslateButton">
+          <Toggle value={translateButton} onChange={(v) => updateSettings({ showTranslateButton: v })} />
         </Row>
         </Group>
       </Box>

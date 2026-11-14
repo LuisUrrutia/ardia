@@ -87,6 +87,11 @@ export const appearanceRows = {
           description: "Show on hover keeps Site Controls, Open Split View and Bookmark (or Copy URL) out of the address bar until the pointer is over it. Always show keeps them there.",
           keywords: ["hover", "always show", "always visible", "site controls", "split view", "bookmark", "copy url", "buttons", "icons", "url bar", "location bar"],
         },
+        showTranslateButton: {
+          title: "Show Translate button",
+          description: "The button in the address bar on a page in a language you don't read. Off, translate a page, or show its original, from Site Controls.",
+          keywords: ["translate", "translation", "translate button", "hide translate", "language", "foreign language", "url bar", "address bar"],
+        },
       },
     },
     {
