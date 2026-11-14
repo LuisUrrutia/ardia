@@ -282,6 +282,7 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
   NSDictionary *request = requestId ? _reports.displayRequests[requestId] : nil;
   if (!request) return;
   [_reports.displayRequests removeObjectForKey:requestId];
+  if (sourceId.length && ![ArdiaHost mayCaptureDesktopSource:sourceId]) sourceId = nil;
   NSString *audio = shareAudio && sourceId.length ? DisplayMediaAudioFor(Field<NSDictionary>(request, @"audio"), sourceId) : nil;
   if (sourceId.length && _tab)
     [ArdiaCoreEngine allowDesktopCapture:sourceId
