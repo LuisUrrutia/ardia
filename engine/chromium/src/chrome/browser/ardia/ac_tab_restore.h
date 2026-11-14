@@ -11,6 +11,7 @@ namespace ardia {
 
 void StartTabHistoryCleaner();
 bool CanKeepTabHistory(content::WebContents* contents);
+bool KeepTabHistory(content::WebContents* contents);
 bool KeepTabHistoryWhenClosed(content::WebContents* contents);
 
 }

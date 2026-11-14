@@ -12,8 +12,9 @@ const { useBrowser } = await import("../browser/store.ts");
 const { reloadLaunchConfigForTests } = await import("../../platform/launchConfig.ts");
 const { reloadSwitches } = await import("../../platform/killSwitches.ts");
 const loading = await import("./profileLoading.ts");
-const { checkIdleProfiles, startProfileUnloading } = await import("./profileUnloading.ts");
-const { startBookmarks } = await import("../bookmarks/engineSync.ts");
+const { checkIdleProfiles, profileUnloadingForTests, startProfileUnloading } = await import("./profileUnloading.ts");
+const { startBookmarks, reloadBookmarks } = await import("../bookmarks/engineSync.ts");
+const { startCast } = await import("../media/cast.ts");
 const { startHistory } = await import("../history/engineSync.ts");
 const { takeTabSleepCounts } = await import("../telemetry/tabSleepCounts.ts");
 
@@ -39,6 +40,7 @@ const tab = (id, profileId, url) => ({
 });
 
 let clock = 0;
+profileUnloadingForTests(() => clock);
 startProfileUnloading();
 
 function launch(settings = {}) {
@@ -50,6 +52,9 @@ function launch(settings = {}) {
   for (const engine of ["", "work", "play"]) stub.loadedEngineProfiles.add(engine);
   stub.profilesLoadedCall.known = true;
   stub.idleProfileUnloads.clear();
+  clock += 24 * 60 * MINUTE;
+  profileUnloadingForTests(() => clock);
+  S().updateSettings({ unloadProfilesAfter: "never" });
   const tabs = [tab("t-work", "work", "https://work.example/"), tab("t-play", "play", "https://play.example/"), tab("t-play-2", "play", "https://play.example/2"), tab("t-default", "default", "https://home.example/")];
   S().hydrate({
     profiles: PROFILES, profileOrder: ["default", "work", "play"], settings: { unloadProfilesAfter: "5m", memorySaver: true, ...settings },
@@ -57,7 +62,6 @@ function launch(settings = {}) {
     tabs: Object.fromEntries(tabs.map((t) => [t.id, t])), focusedWindowId: "w1",
   });
   takeTabSleepCounts();
-  clock += 24 * 60 * MINUTE;
   return loading.startProfileLoading();
 }
 const unloadCalls = (since) => stub.engineCalls.slice(since).filter((c) => c.domain === "profiles" && c.verb === "unloadIdle").map((c) => c.profile);
@@ -125,14 +129,72 @@ test("Never, or Memory Saver off, unloads nothing, and showing a profile starts 
   stub.idleProfileUnloads.set("play", { status: "released", tabs: [] });
   stub.idleProfileUnloads.set("work", { status: "released", tabs: [] });
   const since = stub.engineCalls.length;
+  const start = clock;
   await checkIdleProfiles(clock);
   S().switchProfile("w1", "play");
-  await checkIdleProfiles(clock + 4 * MINUTE);
+  clock = start + 4 * MINUTE;
+  await checkIdleProfiles(clock);
   S().switchProfile("w1", "work");
-  await checkIdleProfiles(clock + 5 * MINUTE);
-  await checkIdleProfiles(clock + 8 * MINUTE);
+  await checkIdleProfiles((clock = start + 5 * MINUTE));
+  await checkIdleProfiles((clock = start + 8 * MINUTE));
   assert.deepEqual(unloadCalls(since), []);
-  await checkIdleProfiles(clock + 10 * MINUTE);
+  await checkIdleProfiles((clock = start + 10 * MINUTE));
   assert.deepEqual(unloadCalls(since), ["play"]);
+  stop();
+});
+
+test("a visit between two checks starts the wait again, from the moment the profile was left", async () => {
+  const stop = launch();
+  await until(() => loading.profileOpened("play"), "the engine's loaded profiles");
+  stub.idleProfileUnloads.set("play", { status: "released", tabs: [] });
+  const start = clock;
+  const since = stub.engineCalls.length;
+  await checkIdleProfiles(clock);
+  clock = start + 4.5 * MINUTE;
+  S().switchProfile("w1", "play");
+  clock = start + 4.6 * MINUTE;
+  S().switchProfile("w1", "work");
+  await checkIdleProfiles((clock = start + 5 * MINUTE));
+  await checkIdleProfiles((clock = start + 9.5 * MINUTE));
+  assert.deepEqual(unloadCalls(since), [], "used 24 seconds before the tick, it isn't unloaded at it");
+  await checkIdleProfiles((clock = start + 9.7 * MINUTE));
+  assert.deepEqual(unloadCalls(since), ["play"], "five minutes after it was left");
+  stop();
+});
+
+test("a bookmark read still running when its profile unloads asks the engine nothing more, and opening it watches and reads again", async () => {
+  const stop = launch();
+  const sync = startBookmarks();
+  await until(() => loading.profileOpened("play"), "the engine's loaded profiles");
+  await until(() => callsFor("play", 0).includes("bookmarks.tree"), "play's first bookmark read");
+  await new Promise((r) => setTimeoutHoldingExit(r, 20));
+  let since = stub.engineCalls.length;
+  void reloadBookmarks();
+  loading.markProfileUnloaded("play");
+  await new Promise((r) => setTimeoutHoldingExit(r, 30));
+  assert.ok(!callsFor("play", since).includes("bookmarks.tree"), `the unloaded profile isn't read: ${callsFor("play", since)}`);
+  since = stub.engineCalls.length;
+  void reloadBookmarks();
+  loading.markProfileUnloaded("work");
+  loading.openProfile("work");
+  await until(() => callsFor("work", since).includes("bookmarks.tree"), "work's read after it opened again");
+  assert.deepEqual(callsFor("work", since).filter((c) => c.startsWith("bookmarks.")).slice(-2), ["bookmarks.watch", "bookmarks.tree"]);
+  loading.openProfile("play");
+  sync();
+  stop();
+});
+
+test("cast routes are watched for a profile a window switches to, and again after that profile unloaded", async () => {
+  const stop = launch();
+  startCast();
+  const watches = (since) => stub.engineCalls.slice(since).filter((c) => c.domain === "media" && c.verb === "watchCastRoutes").map((c) => c.profile);
+  let since = stub.engineCalls.length;
+  S().switchProfile("w1", "play");
+  assert.deepEqual(watches(since), ["play"]);
+  S().switchProfile("w1", "work");
+  loading.markProfileUnloaded("play");
+  since = stub.engineCalls.length;
+  S().switchProfile("w1", "play");
+  assert.deepEqual(watches(since), ["play"]);
   stop();
 });

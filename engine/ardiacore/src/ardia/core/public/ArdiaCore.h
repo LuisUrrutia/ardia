@@ -82,9 +82,6 @@ ARDIACORE_EXPORT
 - (void)deleteProfile:(ArdiaCoreProfile*)profile
            completion:(nullable void (^)(BOOL deleted))completion;
 - (void)releaseProfile:(ArdiaCoreProfile*)profile;
-- (nullable NSString*)sleepIdleProfile:(ArdiaCoreProfile*)profile
-                           hostedTabs:(NSArray<ArdiaCoreTab*>*)tabs;
-- (NSString*)unloadIdleProfile:(ArdiaCoreProfile*)profile;
 + (void)resolveExternalApp:(NSString*)requestId open:(BOOL)open remember:(BOOL)remember;
 @property(class, readonly) NSArray<NSDictionary*>* testExternalLaunches;
 @property(class, readonly) NSArray<NSDictionary*>* testChooserEvents;
@@ -100,6 +97,12 @@ ARDIACORE_EXPORT
                                          NSString* _Nullable error))completion;
 @property(readonly) NSString* chromiumVersion;
 @property(readonly) NSString* keepAliveState;
+@end
+
+@interface ArdiaCoreEngine (IdleProfiles)
+- (nullable NSString*)sleepIdleProfile:(ArdiaCoreProfile*)profile
+                           hostedTabs:(NSArray<ArdiaCoreTab*>*)tabs;
+- (NSString*)unloadIdleProfile:(ArdiaCoreProfile*)profile;
 @end
 
 @interface ArdiaCoreEngine (Tracing)

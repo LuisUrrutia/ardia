@@ -15,19 +15,28 @@ export const profileUnloadDelay = (settings: Pick<Settings, "memorySaver" | "unl
 
 export function idleProfiles() {
   const idleSince = new Map<string, number>();
-  return (loaded: Iterable<string>, inUse: ReadonlySet<string>, now: number, delayMs: number | null): string[] => {
+  let shown: ReadonlySet<string> = new Set();
+  const noteShown = (inUse: ReadonlySet<string>, now: number) => {
+    for (const profile of shown) if (!inUse.has(profile)) idleSince.set(profile, now);
+    for (const profile of inUse) idleSince.delete(profile);
+    shown = inUse;
+  };
+  const ready = (loaded: Iterable<string>, inUse: ReadonlySet<string>, now: number, delayMs: number | null): string[] => {
     if (delayMs === null) {
       idleSince.clear();
+      shown = new Set();
       return [];
     }
+    noteShown(inUse, now);
     const profiles = new Set(loaded);
-    for (const profile of [...idleSince.keys()]) if (!profiles.has(profile) || inUse.has(profile)) idleSince.delete(profile);
-    const ready: string[] = [];
+    for (const profile of [...idleSince.keys()]) if (!profiles.has(profile)) idleSince.delete(profile);
+    const due: string[] = [];
     for (const profile of profiles) {
       if (inUse.has(profile)) continue;
       if (!idleSince.has(profile)) idleSince.set(profile, now);
-      if (now - idleSince.get(profile)! >= delayMs) ready.push(profile);
+      if (now - idleSince.get(profile)! >= delayMs) due.push(profile);
     }
-    return ready;
+    return due;
   };
+  return Object.assign(ready, { noteShown });
 }

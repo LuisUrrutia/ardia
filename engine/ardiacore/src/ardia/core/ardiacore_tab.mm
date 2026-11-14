@@ -219,9 +219,8 @@ using ardiacore::NS;
 }
 
 - (BOOL)unloadKeepingHistory {
-  if (!_contents || !_contents->WasDiscarded() ||
-      _contents->NeedToFireBeforeUnloadOrUnloadEvents() ||
-      ardiacore::IsNotifyingAny() || browser_shutdown::IsTryingToQuit()) {
+  if (!_contents || !_contents->WasDiscarded() || ardiacore::IsNotifyingAny() ||
+      browser_shutdown::IsTryingToQuit()) {
     return NO;
   }
   BrowserWindowInterface* browser =

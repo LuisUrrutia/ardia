@@ -19,6 +19,9 @@ const readyToUnload = idleProfiles();
 const unloadedHere = new Set<string>();
 const reopenedAt = new Map<string, number>();
 let checking = false;
+let clock = () => Date.now();
+
+export const profileUnloadingForTests = (now: () => number) => void (clock = now);
 
 function wakeShown(ids: string[]) {
   const s = store();
@@ -51,13 +54,20 @@ export function applyUnload(profile: string, result: Unload) {
   return true;
 }
 
-async function unload(profile: string) {
+const SETTLE_MS = 5_000;
+
+async function unload(profile: string, settled = false): Promise<boolean> {
   const s = store();
-  if (!unloadable(profile) || shownEngineProfiles(s).includes(profile)) return false;
-  return applyUnload(profile, await unloadIdleProfile(profile));
+  if (!unloadable(profile) || profileUnloadDelay(s.settings) === null || shownEngineProfiles(s).includes(profile)) return false;
+  const result = await unloadIdleProfile(profile);
+  if (result.heldBy === "sleeping" && !settled) {
+    await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
+    return unload(profile, true);
+  }
+  return applyUnload(profile, result);
 }
 
-export async function checkIdleProfiles(now = Date.now()) {
+export async function checkIdleProfiles(now = clock()) {
   const s = store();
   const delay = profileUnloadDelay(s.settings);
   if (delay === null) return void readyToUnload([], new Set(), now, null);
@@ -65,10 +75,7 @@ export async function checkIdleProfiles(now = Date.now()) {
   checking = true;
   try {
     const loaded = (await loadedProfiles()).filter((profile) => unloadable(profile) && profileOpened(profile));
-    for (const profile of readyToUnload(loaded, new Set(shownEngineProfiles(store())), now, delay)) {
-      if (profileUnloadDelay(store().settings) === null) return;
-      await unload(profile);
-    }
+    for (const profile of readyToUnload(loaded, new Set(shownEngineProfiles(store())), now, delay)) await unload(profile);
   } catch (error) {
     console.warn("[profiles] couldn't unload idle profiles", error);
   } finally {
@@ -76,32 +83,48 @@ export async function checkIdleProfiles(now = Date.now()) {
   }
 }
 
-let started = false;
-
-export function startProfileUnloading() {
-  if (started) return;
-  started = true;
-  onProfilesOpened((engines) => {
+function watchProfiles(): () => void {
+  readyToUnload.noteShown(new Set(shownEngineProfiles(store())), clock());
+  const shown = useBrowser.subscribe((s, prev) => {
+    if (s.windows !== prev.windows || s.profiles !== prev.profiles) readyToUnload.noteShown(new Set(shownEngineProfiles(s)), clock());
+  });
+  const opened = onProfilesOpened((engines) => {
     for (const engine of engines) {
       if (!unloadedHere.delete(engine)) continue;
       noteUnloadedProfileReopened();
       reopenedAt.set(engine, Date.now());
     }
   });
-  onProfileLoaded((engine) => {
+  const loaded = onProfileLoaded((engine) => {
     const at = reopenedAt.get(engine);
     if (at === undefined) return;
     reopenedAt.delete(engine);
     noteUnloadedProfileReloaded(Date.now() - at);
   });
-  everySlowly({
-    every: CHECK_MS,
-    run: () => void checkIdleProfiles(),
-    needed: () => profileUnloadDelay(store().settings) !== null,
-    watch: (changed) =>
-      useBrowser.subscribe((s, prev) => {
-        if (s.settings.unloadProfilesAfter !== prev.settings.unloadProfilesAfter || s.settings.memorySaver !== prev.settings.memorySaver) changed();
-      }),
+  const timer = everySlowly({ every: CHECK_MS, run: () => void checkIdleProfiles() });
+  return () => {
+    shown();
+    opened();
+    loaded.remove();
+    timer();
+    readyToUnload([], new Set(), 0, null);
+  };
+}
+
+let started = false;
+
+export function startProfileUnloading() {
+  if (started) return;
+  started = true;
+  let stop: (() => void) | null = null;
+  const follow = (on: boolean) => {
+    if (on === !!stop) return;
+    if (on) stop = watchProfiles();
+    else (stop?.(), (stop = null));
+  };
+  follow(profileUnloadDelay(store().settings) !== null);
+  useBrowser.subscribe((s, prev) => {
+    if (s.settings !== prev.settings) follow(profileUnloadDelay(s.settings) !== null);
   });
   if (__DEV__) (globalThis as { acProfileUnloading?: unknown }).acProfileUnloading = { check: checkIdleProfiles, unload };
 }
