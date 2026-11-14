@@ -8,6 +8,7 @@ import { hoverZoomPopover, toggleZoomPopover, useIsZoomBubble } from "../../stat
 import { closedByThisPress, dismissPopoverByPress } from "../../state/tabs/popoverDismiss";
 import { markHoverProps } from "../../lib/hoverMarks";
 import { type ToolbarPalette } from "../ui/toolbarColors";
+import { useShortcutHint, withShortcut } from "../../state/commands/commandShortcuts";
 
 export const ZoomIndicator = memo(function ZoomIndicator({ tabId, zoom, palette, onFocus }: { tabId: string; zoom: number; palette: ToolbarPalette; onFocus: () => void }) {
   const open = usePages((p) => p.popover[tabId] === "zoom");
@@ -57,9 +58,11 @@ const ZOOM_BAR = 48;
 const TABULAR_FILL = { flex: 1, fontVariant: ["tabular-nums" as const] };
 
 export function ZoomStepper({ tabId, zoom, percent = true }: { tabId: string; zoom: number; percent?: boolean }) {
+  const zoomOutHint = useShortcutHint("zoomOut");
+  const zoomInHint = useShortcutHint("zoomIn");
   return (
     <Box row gap={percent ? "xxs" : "xs"} style={CENTER_ROW}>
-      <Button variant="stepper" icon="minus" tooltip="Zoom Out (⌘-)" onPress={() => void webviews.get(tabId)?.zoomStep(-1)} />
+      <Button variant="stepper" icon="minus" tooltip={withShortcut("Zoom Out", zoomOutHint)} onPress={() => void webviews.get(tabId)?.zoomStep(-1)} />
       {percent ? (
         <Pressable onPress={() => void webviews.get(tabId)?.zoomStep(0)} tooltip="Reset to 100%">
           <Text size="small" tone={zoom === 1 ? "textSecondary" : "textPrimary"} style={{ width: 44, textAlign: "center", fontVariant: ["tabular-nums"] }}>
@@ -67,7 +70,7 @@ export function ZoomStepper({ tabId, zoom, percent = true }: { tabId: string; zo
           </Text>
         </Pressable>
       ) : null}
-      <Button variant="stepper" icon="plus" tooltip="Zoom In (⌘+)" onPress={() => void webviews.get(tabId)?.zoomStep(1)} />
+      <Button variant="stepper" icon="plus" tooltip={withShortcut("Zoom In", zoomInHint)} onPress={() => void webviews.get(tabId)?.zoomStep(1)} />
     </Box>
   );
 }
