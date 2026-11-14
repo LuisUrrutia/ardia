@@ -190,7 +190,7 @@ export const generalRows = {
         },
         showTabHoverMenu: {
           title: "Show tab hover menu",
-          description: "Rest the pointer on a tab or Top App and a card shows its title, address, and Pin, Bookmark, Split and Reset. Off, nothing pops up as you move over tabs; every one of those is in the tab's right-click menu. A playing tab's mini player still shows.",
+          description: "Rest the pointer on a tab or Top App and a card shows its title, address, and Pin, Bookmark, Split and Reset. Off, resting on a tab shows only its full title and site as a plain tooltip, and every one of those actions is in the tab's right-click menu. A playing tab's mini player still shows.",
           keywords: ["hover", "hover card", "popup", "pop-up", "tooltip", "tab actions", "reset", "distracting", "dia"],
         },
         fadeUnloadedTabs: {
