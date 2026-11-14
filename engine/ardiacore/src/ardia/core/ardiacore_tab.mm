@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "base/strings/sys_string_conversions.h"
+#include "chrome/browser/ardia/ac_tab_restore.h"
 #include "chrome/browser/lifetime/browser_shutdown.h"
 #include "chrome/browser/performance_manager/policies/cannot_discard_reason.h"
 #include "chrome/browser/performance_manager/policies/discard_eligibility_policy.h"
@@ -215,6 +216,30 @@ using ardiacore::NS;
 
 - (BOOL)discarded {
   return _contents && _contents->WasDiscarded();
+}
+
+- (BOOL)unloadKeepingHistory {
+  if (!_contents || !_contents->WasDiscarded() ||
+      _contents->NeedToFireBeforeUnloadOrUnloadEvents() ||
+      ardiacore::IsNotifyingAny() || browser_shutdown::IsTryingToQuit()) {
+    return NO;
+  }
+  BrowserWindowInterface* browser =
+      GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(_contents);
+  ardiacore::TabBridge* bridge = ardiacore::TabBridge::GetOrCreate(_contents);
+  if (!browser || !ardiacore::WindowHost::ForBrowser(browser) ||
+      bridge->closing_after_unload() ||
+      UnloadController::From(browser)->is_attempting_to_close_browser() ||
+      browser->GetTabStripModel()->GetIndexOfWebContents(_contents) ==
+          TabStripModel::kNoTab) {
+    return NO;
+  }
+  if (!ardia::KeepTabHistoryWhenClosed(_contents)) {
+    return NO;
+  }
+  bridge->set_closed_by_host();
+  ardiacore::DeleteTabClosedByHost(_contents, ardiacore::ClosedTabRecord::kNone);
+  return !_contents;
 }
 
 - (NSString*)discardReason {

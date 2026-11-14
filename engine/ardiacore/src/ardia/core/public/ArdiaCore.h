@@ -82,6 +82,9 @@ ARDIACORE_EXPORT
 - (void)deleteProfile:(ArdiaCoreProfile*)profile
            completion:(nullable void (^)(BOOL deleted))completion;
 - (void)releaseProfile:(ArdiaCoreProfile*)profile;
+- (nullable NSString*)sleepIdleProfile:(ArdiaCoreProfile*)profile
+                           hostedTabs:(NSArray<ArdiaCoreTab*>*)tabs;
+- (NSString*)unloadIdleProfile:(ArdiaCoreProfile*)profile;
 + (void)resolveExternalApp:(NSString*)requestId open:(BOOL)open remember:(BOOL)remember;
 @property(class, readonly) NSArray<NSDictionary*>* testExternalLaunches;
 @property(class, readonly) NSArray<NSDictionary*>* testChooserEvents;
@@ -307,6 +310,7 @@ ARDIACORE_EXPORT
 - (BOOL)discard;
 - (NSArray<NSNumber*>*)sleepIfHiddenFor:(NSTimeInterval)seconds;
 @property(readonly) BOOL discarded;
+- (BOOL)unloadKeepingHistory;
 @property(readonly, nullable) NSString* discardReason;
 @property(nonatomic) BOOL frozen;
 - (void)resolveUnresponsive:(BOOL)terminate;

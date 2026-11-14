@@ -7,7 +7,7 @@ import { useBrowser, type BrowserState } from "../browser/store";
 import { engineProfile, isIncognitoProfile } from "../browser/model";
 import type { BookmarkFolder, BookmarkNode, Bookmarks } from "../browser/types";
 import { engineProfiles } from "../profiles/engineProfiles";
-import { onProfilesOpened, openedEngineProfiles, openProfile, profileOpened } from "../profiles/profileLoading";
+import { onProfilesOpened, onProfilesUnloaded, openedEngineProfiles, openProfile, profileOpened } from "../profiles/profileLoading";
 import { migrateLegacyFile } from "../app/legacyFiles";
 import { noteBookmarkSyncDiff } from "../telemetry/bookmarkMoves";
 
@@ -266,6 +266,15 @@ export function startBookmarks() {
   const opened = onProfilesOpened((now) => {
     for (const engine of now) if (!stateOf(engine).shadow && !stateOf(engine).busy) read(engine);
   });
+  const unloaded = onProfilesUnloaded((now) => {
+    for (const engine of now) {
+      const state = stateOf(engine);
+      state.shown = state.shadow ?? state.shown;
+      state.shadow = null;
+      state.needRead = false;
+      state.needPush = false;
+    }
+  });
   const stop = useBrowser.subscribe((s, prev) => {
     if (s.profiles !== prev.profiles) {
       for (const engine of openedEngineProfiles(s)) if (!stateOf(engine).shadow && !stateOf(engine).busy) read(engine);
@@ -283,6 +292,7 @@ export function startBookmarks() {
     cacheTimer = undefined;
     changes.remove();
     opened();
+    unloaded();
     stop();
     engines.clear();
     legacyMoved = false;

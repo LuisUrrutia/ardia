@@ -245,6 +245,27 @@ class TabKeyBinding : public content::WebContentsObserver,
 
   void Resave() { SaveSoon(); }
 
+  std::optional<std::string> HistoryToKeep() const {
+    Profile* profile = SavingProfile();
+    std::optional<std::string> generation =
+        profile ? TabHistoryGeneration(profile) : std::nullopt;
+    return generation ? TabHistoryOf(web_contents(), *generation) : std::nullopt;
+  }
+
+  bool KeepWhenClosed() {
+    std::optional<std::string> history = HistoryToKeep();
+    if (!history) {
+      return false;
+    }
+    save_timer_.Stop();
+    unsaved_ = false;
+    keep_when_closed_ = true;
+    TabHistoryFiles()->PostTask(
+        FROM_HERE, base::BindOnce(&WriteTabHistory, HistoryFile(SavingProfile()),
+                                  std::move(*history)));
+    return true;
+  }
+
   void Bind(std::string key) {
     key_ = std::move(key);
     Stamp();
@@ -269,7 +290,7 @@ class TabKeyBinding : public content::WebContentsObserver,
     if (!profile) {
       return;
     }
-    if (browser_shutdown::IsTryingToQuit() ||
+    if (keep_when_closed_ || browser_shutdown::IsTryingToQuit() ||
         browser_shutdown::HasShutdownStarted() || profile->ShutdownStarted()) {
       if (unsaved_) {
         Save();
@@ -348,6 +369,7 @@ class TabKeyBinding : public content::WebContentsObserver,
 
   std::string key_;
   bool unsaved_ = false;
+  bool keep_when_closed_ = false;
   base::OneShotTimer save_timer_;
 
   WEB_CONTENTS_USER_DATA_KEY_DECL();
@@ -440,6 +462,16 @@ class TabHistoryCleaner : public history::HistoryServiceObserver,
 
 void StartTabHistoryCleaner() {
   TabHistoryCleaner::Start();
+}
+
+bool CanKeepTabHistory(content::WebContents* contents) {
+  TabKeyBinding* binding = TabKeyBinding::FromWebContents(contents);
+  return binding && binding->HistoryToKeep().has_value();
+}
+
+bool KeepTabHistoryWhenClosed(content::WebContents* contents) {
+  TabKeyBinding* binding = TabKeyBinding::FromWebContents(contents);
+  return binding && binding->KeepWhenClosed();
 }
 
 }
