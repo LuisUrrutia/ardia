@@ -45,6 +45,8 @@ if grants_browser_passkeys "$app/Contents/embedded.provisionprofile"; then
 else
   [[ "$app_ents" != *web-browser.public-key-credential* ]] || die "the app is signed with com.apple.developer.web-browser.public-key-credential, which its profile doesn't grant"
 fi
+fairplay_ents="$(entitlements "$app/Contents/Helpers/ArdiaFairPlay.app")"
+[[ "$fairplay_ents" == *app-sandbox* && "$fairplay_ents" == *network.client* ]] || die "the FairPlay helper isn't sandboxed"
 for helper in "$fwv"/Helpers/*"Renderer).app" "$fwv"/Helpers/*"GPU).app"; do
   [[ "$(entitlements "$helper")" == *cs.allow-jit* ]] || die "$(basename "$helper") lost allow-jit"
 done
