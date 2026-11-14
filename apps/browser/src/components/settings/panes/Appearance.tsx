@@ -153,9 +153,10 @@ function AddressBarPicker() {
             options={[
               { value: "field", title: "At the address" },
               { value: "centred", title: "In the centre" },
+              { value: "centredOnClick", title: "In the centre, also on click" },
             ]}
             onChange={(v) => updateSettings({ commandBarPlacement: v })}
-            minWidth={160}
+            minWidth={220}
           />
         </Row>
         <Row anchor="appearance.compactToolbar">

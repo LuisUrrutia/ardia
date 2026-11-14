@@ -153,7 +153,7 @@ export const SETTING_SPECS = {
   minimalismMode: flag(false, SYNCED),
   pageFrameZeroInFullScreen: flag(false, SYNCED),
   pageFrameZeroWhenTabsHidden: flag(false, SYNCED),
-  commandBarPlacement: oneOf(["field", "centred"], "field", SYNCED),
+  commandBarPlacement: oneOf(["field", "centred", "centredOnClick"], "field", SYNCED),
   commandBarStart: shaped<CommandBarStart>({}, isCommandBarStart, COMMAND_BAR_START_SCHEMA),
   spacesFollowAppearance: flag(true),
   adaptTextToColor: flag(true, SYNCED),
