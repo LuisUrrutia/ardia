@@ -10,11 +10,13 @@ import { usePageProgress } from "../../state/tabs/pageProgress";
 import { extensionsFitting, ToolbarExtensions, useToolbarExtensionsWidth } from "../extensions/ToolbarExtensions";
 import { useHistoryAvailability } from "../../state/tabs/navigation";
 import { toolbarPalette, type ToolbarPalette } from "../ui/toolbarColors";
-import { Button, type ButtonHit, FadeLabel, font, radius, space, ToolbarRowContext, useHover } from "../ui";
+import { Button, type ButtonHit, FadeLabel, radius, space, ToolbarRowContext, useHover } from "../ui";
 import { TOOLBAR_ROWS } from "../../lib/toolbarRow";
 import { setUrlAnchor } from "../../state/windows/layout";
 import { useSidebarPart } from "../../state/sidebar/chrome";
 import { SIDEBAR_FIELD } from "./geometry";
+import { SIDEBAR_TYPE, TAB_ROW } from "./tokens";
+import { SidebarTextScope } from "./SidebarTextScope";
 import { SidebarFieldFill } from "./SidebarField";
 import { SidebarUrlField, useToolbarTab } from "../toolbar/Toolbar";
 import { HistoryButton, ReloadButton } from "../toolbar/NavButtons";
@@ -116,9 +118,11 @@ export function SidebarAddressRow({ width, top }: { width: number; top: number }
       onLayout={anchor}
       style={{ position: "absolute", left: layout.sidebarInset, right: layout.sidebarInset, top, height: SIDEBAR_FIELD.height }}
     >
-      <ToolbarRowContext.Provider value={TOOLBAR_ROWS.regular}>
-        {tab?.url ? <PageField tab={tab} windowId={windowId} width={width - 2 * layout.sidebarInset} /> : <EmptyField windowId={windowId} />}
-      </ToolbarRowContext.Provider>
+      <SidebarTextScope>
+        <ToolbarRowContext.Provider value={TOOLBAR_ROWS.regular}>
+          {tab?.url ? <PageField tab={tab} windowId={windowId} width={width - 2 * layout.sidebarInset} /> : <EmptyField windowId={windowId} />}
+        </ToolbarRowContext.Provider>
+      </SidebarTextScope>
     </View>
   );
 }
@@ -160,7 +164,7 @@ function EmptyField({ windowId }: { windowId: string }) {
       <Pressable onPress={open}>
         <View style={{ height: SIDEBAR_FIELD.height, justifyContent: "center", paddingLeft: space.l }}>
           <SidebarFieldFill hovered={hovered} />
-          <FadeLabel text="Search or enter address" fontSize={font.body.fontSize} color={theme.placeholder} fadeWidth={14} style={{ height: 18, marginLeft: -space.xxs }} />
+          <FadeLabel text="Search or enter address" fontSize={SIDEBAR_TYPE.title} color={theme.placeholder} fadeWidth={14} style={{ height: TAB_ROW.titleHeight, marginLeft: -space.xxs }} />
         </View>
       </Pressable>
     </View>

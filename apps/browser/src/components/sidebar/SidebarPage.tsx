@@ -4,6 +4,7 @@ import { switchOn } from "../../state/app/switches";
 import { ContextMenuArea, space, WindowDragRegion } from "../ui";
 import { layout } from "../ui/theme";
 import { TintInk } from "../ui/TintInk";
+import { SidebarTextScope } from "./SidebarTextScope";
 import { ThemeScope } from "../window/ThemeScope";
 import { PageProfileContext, useSettings, useWindowId } from "../../state/browser/hooks";
 import { newTab } from "../../state/tabs/actions";
@@ -139,6 +140,7 @@ export const SidebarPage = memo(function SidebarPage({ profileId, slot, paging, 
       <PageProfileContext.Provider value={profileId}>
         <ThemeScope>
           <TintInk>
+            <SidebarTextScope>
             <DragScope enabled={current}>
               <PageContent tilesFixed={dockFixed} tilesRoom={dockRoom}>
                 {(controller) => (
@@ -202,6 +204,7 @@ export const SidebarPage = memo(function SidebarPage({ profileId, slot, paging, 
                 )}
               </PageContent>
             </DragScope>
+            </SidebarTextScope>
           </TintInk>
         </ThemeScope>
       </PageProfileContext.Provider>

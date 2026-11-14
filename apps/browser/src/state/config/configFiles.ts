@@ -2,7 +2,7 @@ import { configDirectory } from "../../platform/launchConfig";
 import { onConfigChange, readConfigFile, watchConfigFiles, writeConfigSchemas, type ConfigFileRead } from "../../platform/configFolder";
 import { afterFirstWindow } from "../../lib/afterFirstWindow";
 import { mergedPalettes, parseThemeFile, type RolePalettes, type ThemeRoles } from "../../lib/themeFile";
-import { DEFAULT_LOOK, resolveLook, type LookBlocks } from "../../lib/themeLook";
+import { DEFAULT_LOOK, resolveLook, withSidebarText, type LookBlocks, type SidebarTextSize } from "../../lib/themeLook";
 import { setActiveLook } from "../../lib/activeLook";
 import { useBrowser } from "../browser/store";
 import { showToast } from "../app/toasts";
@@ -27,6 +27,8 @@ const NO_THEME: ThemeParts = { roles: null, look: null };
 
 let defaults: RolePalettes | null = null;
 let theme: Theme = { name: null, ...NO_THEME };
+let appliedSidebarText: SidebarTextSize = "default";
+let stopWatchingSidebarText: (() => void) | null = null;
 let revision = 0;
 let windowsUp = false;
 let reported = new Set<string>();
@@ -64,12 +66,16 @@ function applySidebarWidth(before: number | null, after: number | null) {
   if (useBrowser.getState().settings.sidebarWidth !== width) useBrowser.getState().updateSettings({ sidebarWidth: width });
 }
 
+const sidebarTextSize = () => useBrowser.getState().settings.sidebarTextSize;
+
 function applyTheme(next: Theme) {
   if (!defaults) return;
-  if (next.name === theme.name && JSON.stringify([next.roles, next.look]) === JSON.stringify([theme.roles, theme.look])) return;
+  const size = sidebarTextSize();
+  if (next.name === theme.name && size === appliedSidebarText && JSON.stringify([next.roles, next.look]) === JSON.stringify([theme.roles, theme.look])) return;
   const before = useBasePalette.getState().look;
-  const look = resolveLook(next.look);
+  const look = withSidebarText(resolveLook(next.look), size);
   theme = next;
+  appliedSidebarText = size;
   revision += 1;
   setActiveLook(look);
   const themed = next.roles || look !== DEFAULT_LOOK;
@@ -144,6 +150,9 @@ export function startConfigFiles(roles: RolePalettes) {
   if (defaults) return;
   defaults = roles;
   reconcileConfig();
+  stopWatchingSidebarText = useBrowser.subscribe((s, prev) => {
+    if (s.settings.sidebarTextSize !== prev.settings.sidebarTextSize) applyTheme(theme);
+  });
   afterFirstWindow(() => {
     windowsUp = true;
     onConfigChange(changed);
@@ -158,6 +167,9 @@ export function resetConfigFilesForTests() {
   timer = undefined;
   defaults = null;
   theme = { name: null, ...NO_THEME };
+  appliedSidebarText = "default";
+  stopWatchingSidebarText?.();
+  stopWatchingSidebarText = null;
   windowsUp = false;
   reported = new Set();
   unshown = [];

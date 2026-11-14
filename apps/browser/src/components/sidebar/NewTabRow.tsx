@@ -11,7 +11,7 @@ import { toggleNewTabBar } from "../../state/omnibox/newTabBar";
 import { noteRowPressIn } from "../../state/sidebar/heldTabPress";
 import { modifiersOf } from "../../lib/keys";
 import { useClipped, useShift, type ClipSource } from "./EntryMotion";
-import { TAB_ROW, useSidebarTokens } from "./tokens";
+import { ROW_GLYPH, TAB_ROW, useSidebarTokens } from "./tokens";
 import { SidebarRowLabel } from "./SidebarRow";
 
 const clippedRow = perLook(() => ({ marginTop: -layout.rowGap, paddingTop: layout.rowGap, overflow: "hidden" as const }));
@@ -75,7 +75,7 @@ export const NewTabRow = memo(function NewTabRow({ windowId, shift = null, clip 
                 moved.style as object,
               ]}
             >
-              <Symbol name="plus" size={13} weight="medium" color={tokens.newTabIcon} style={{ width: 16, height: 16 }} />
+              <Symbol name="plus" size={ROW_GLYPH.plus} weight="medium" color={tokens.newTabIcon} style={{ width: ROW_GLYPH.box, height: ROW_GLYPH.box }} />
               <SidebarRowLabel text="New Tab" color={tokens.newTabLabel} />
             </View>
           )}
