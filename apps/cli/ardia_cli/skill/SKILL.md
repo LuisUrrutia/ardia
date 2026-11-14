@@ -24,8 +24,8 @@ ardia browse snapshot -i    # a task about the user's own page
 
 - This page's text: `ardia browse read`, or `read -s <sel>`. Other pages, any number, in one call:
   `read <url> <url> …`, or every link here whose URL matches: `read --links /p/ -s table.specs` (`--list`: just the
-  URLs). They load in your background tabs with the user's logins; `--http` is a plain fetch, best for a
-  site's public JSON API.
+  URLs). They load in your background tabs with the user's logins; `--http` is a plain fetch for a site's
+  public JSON API.
 - A long or scroll-loaded list (`1–40 of 200`): `read --scroll` (the main list, or `-s <list>`; `--match <text>`).
 - Blocked, CAPTCHA or 429 (`read` says so): wait 30–60 s, retry, click a captcha checkbox once, then use the
   site's own search and pages, or another source.
@@ -80,9 +80,9 @@ EOF
 ## Finish
 
 - Scope first: the page's own total (`1,420 results`), every page, tab, category and `Load more`. Before answering,
-  compare your row count with it; name what's missing and why. Save each batch: partial data beats none.
+  compare your rows with it; name what's missing and why. Save each batch: partial data beats none.
 - Every value comes from output this session showed or saved: never retype rows or fill gaps from memory; mark the
-  rest `unverified`. Search results are pointers: open the source.
+  rest `unverified`. A search snippet is a pointer: cite and date only pages you read.
 - Answer in the shape asked; files you name must exist. Recheck each total, URL, time and status against the output.
 
 ## Memory
