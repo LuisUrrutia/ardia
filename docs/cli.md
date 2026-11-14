@@ -22,7 +22,9 @@ DevTools connection (`browse`, `scripts test`) and for `ardia run`, which presse
 organizing (`tabs`, `groups`, `apply`, `windows`, `commands`, `events`, `pinned`, `history`, `config`) never shows it. It overlays the page and never resizes it. It shows at the first connection and stays 3 s after
 the last one closes, so a burst of commands shows one steady pill; turning the setting off hides it at once. One per
 window: the focused pane of a split, the full screen page, or the Peek while one is open
-(`apps/browser/src/components/window/CliControlPill.tsx`, `useCliIndicator` in `state/app/cliControl.ts`).
+(`apps/browser/src/components/window/CliControlPill.tsx`, `useCliIndicator` in `state/app/cliControl.ts`). Settings › Advanced ›
+Command line › Shrink the control pill to an icon and Stop (`compactCliPill`) keeps only the caller's icon and Stop, the
+line moving to its tooltip and accessibility label; nothing hides it.
 
 The pill names who runs the command (`ardia_cli/caller.py`). The command walks its own process ancestry once (parent
 pids through libproc's `proc_pidinfo`, each one's executable through `proc_pidpath` and its first two arguments

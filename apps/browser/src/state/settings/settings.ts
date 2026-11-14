@@ -144,6 +144,7 @@ export const SETTING_SPECS = {
   showFullUrl: flag(false, SYNCED),
   allowJavaScriptFromAppleEvents: flag(false),
   cliControl: flag(false),
+  compactCliPill: flag(false, SYNCED),
   showBookmarks: flag(true, SYNCED),
   bookmarksBar: oneOf(["always", "newTab", "never"], "never", SYNCED),
   bookmarksBarSize: oneOf(["default", "large"], "default", SYNCED),

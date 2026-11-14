@@ -181,6 +181,7 @@ function CommandLineSection() {
             onPress={() => void installCliInBackground("settings")}
           />
         </Row>
+        <SettingToggle anchor="advanced.compactCliPill" />
       </Group>
     </>
   );

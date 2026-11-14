@@ -203,6 +203,12 @@ export const toolRows = {
       rows: {
         cliControl: { advanced: true, title: "Let the ardia command control Ardia", keywords: ["cli", "command line", "terminal", "shell", "devtools", "automation", "remote debugging"] },
         cliInstall: { advanced: true, title: "The ardia command", keywords: ["cli", "command line", "terminal", "shell", "install"] },
+        compactCliPill: {
+          advanced: true,
+          title: "Show the control pill as an icon and Stop",
+          description: "While a command controls Ardia, the pill at the bottom of the page shows only the app's icon and Stop; hover it to see who is in control. It can't be hidden, because it's how you know something is driving the browser.",
+          keywords: ["cli", "control pill", "is controlling", "agent", "claude code", "codex", "hide", "smaller", "compact", "minimize", "indicator", "stop"],
+        },
       },
     },
     {
