@@ -1,6 +1,7 @@
 import type { MenuBookmark, MenuState } from "../../platform/commands";
 import { engineBookmarkRoots, folderChildren, isBookmarked, isWithin, ROOT_TITLES } from "../bookmarks/bookmarks";
 import type { BrowserState } from "../browser/store";
+import { noRecordReads, recordReadsChanged, trackedRecord, type RecordReads } from "../browser/recordReads";
 import { activeTab, bookmarkProfileId, engineProfile, IDLE_LIVE, isPinnedRow, tabLabel, togglePinTitle, windowTitle, tabLayoutOf, tabsShownIn } from "../browser/model";
 import { canSwitchEngine, tabEngine } from "../engines/engines";
 import { peekTabId } from "../peek/peek";
@@ -141,20 +142,32 @@ export function menuState(s: BrowserState): MenuState {
     extensions: extensionMenu(s, windowId) };
 }
 
-export type MenuReads = ReadonlySet<keyof BrowserState>;
+const TRACKED_RECORDS = ["tabs", "live"] as const;
+type TrackedRecord = (typeof TRACKED_RECORDS)[number];
+const trackedRecordName = (key: unknown) => TRACKED_RECORDS.find((name) => name === key);
+
+export type MenuReads = { keys: ReadonlySet<keyof BrowserState>; records: Readonly<Record<TrackedRecord, RecordReads>> };
 
 export function trackedMenuState(s: BrowserState): { state: MenuState; reads: MenuReads } {
-  const reads = new Set<keyof BrowserState>();
+  const keys = new Set<keyof BrowserState>();
+  const records = { tabs: noRecordReads(), live: noRecordReads() };
+  const proxies: Partial<Record<TrackedRecord, object>> = {};
   const tracked = new Proxy(s, {
     get(target, key, receiver) {
-      if (typeof key === "string") reads.add(key as keyof BrowserState);
+      if (typeof key === "string") keys.add(key as keyof BrowserState);
+      const record = trackedRecordName(key);
+      if (record) return (proxies[record] ??= trackedRecord<object>(target[record], records[record]));
       return Reflect.get(target, key, receiver);
     },
   });
-  return { state: menuState(tracked), reads };
+  return { state: menuState(tracked), reads: { keys, records } };
 }
 
 export function menuInputsChanged(reads: MenuReads, s: BrowserState, prev: BrowserState): boolean {
-  for (const key of reads) if (s[key] !== prev[key]) return true;
+  for (const key of reads.keys) {
+    if (s[key] === prev[key]) continue;
+    const record = trackedRecordName(key);
+    if (!record || recordReadsChanged<object>(reads.records[record], s[record], prev[record])) return true;
+  }
   return false;
 }
