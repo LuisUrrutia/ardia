@@ -45,6 +45,9 @@ export type OpenDisposition = "foreground" | "background" | "window" | "popup" |
 export type OpenWindowRequest = {
   url: string;
   disposition: OpenDisposition;
+  routed?: boolean;
+  opens?: "tab" | "page";
+  keyed?: boolean;
   adoptId?: string;
   userGesture?: boolean;
   postBody?: boolean;
@@ -169,6 +172,7 @@ export type WebViewProps = ViewProps & {
   engine?: PageEngine;
   url?: string;
   profile?: string;
+  sidebarProfile?: string;
   adoptId?: string;
   tabId?: string;
   temporary?: boolean;
@@ -280,3 +284,6 @@ export type WebViewHandle = {
 export type DiscardOutcome = "discarded" | "already" | "refused" | "unsupported";
 export type DiscardRefusal = number;
 export type DiscardReason = "external" | "urgent" | "proactive" | "suggested" | "frozen";
+
+export type PageMatchSpec = { all: boolean; schemes: string[]; host: string; sub: boolean; port: string; file: boolean; path: string };
+export type PageLinkRoute = { spec: PageMatchSpec | "any"; profile: string | null; open: "tab" | "window" | "littleArdia"; group: string | null };
