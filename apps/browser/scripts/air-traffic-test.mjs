@@ -8,7 +8,7 @@ import { launch, session, sleep } from "../../../scripts/lib/instance.mjs";
 const appArg = process.argv.slice(2).find((a) => !a.startsWith("--"));
 if (!appArg) {
   console.error("usage: node air-traffic-test.mjs <Debug Ardia.app>");
-  console.error("Checks Air Traffic Control in a hidden instance: a link from another app (a real GURL Apple Event) into a tab group, trusted plain and ⌘-clicks on a Personal page that a rule sends to Work (one on a link whose page handler stops the click's propagation, one on a link a wildcard rule takes), a click no rule takes, and an address typed in a Personal tab's address bar.");
+  console.error("Checks Air Traffic Control in a hidden instance: a link from another app (a real GURL Apple Event) into a tab group, trusted plain and ⌘-clicks on a Personal page that a rule sends to Work (one on a link whose page handler stops the click's propagation, one on a link a wildcard rule takes), a click no rule takes, an address typed in a Personal tab's address bar, and ⌘↩ on a suggestion for an open tab.");
   process.exit(2);
 }
 const app = resolve(appArg);
@@ -151,6 +151,28 @@ try {
     });
   });
   record("an address typed in a Personal tab's address bar opens a Work tab and keeps the source tab", typed?.ok, typed);
+
+  const switchTo = await inst.eval(`const s = ac.store.getState(); const open = s.newTab("w1", { url: "https://example.net/open", profileId: "default", background: true, gated: true }); s.activate("t1"); s.openPanel("w1"); return open;`).then(async (openTab) => {
+    const id = await until(async () => {
+      const found = await inst.eval(`return ac.omnibox.ids().find((i) => i.startsWith("w1:") && !i.includes("hero")) ?? null;`);
+      return { ok: !!found, found };
+    });
+    await sleep(800);
+    await inst.eval(`ac.omnibox.get(${JSON.stringify(id?.found)}).type("example.net/open"); return true;`);
+    const offered = await until(async () => {
+      const items = await inst.eval(`return ac.omnibox.get(${JSON.stringify(id?.found)}).state().items.map((i) => [i.kind, i.tabId ?? null, i.url ?? null]);`);
+      return { ok: items.some(([kind, tab]) => kind === "page" && tab === openTab), items };
+    });
+    const bar = `ac.omnibox.get(${JSON.stringify(id?.found)})`;
+    const picked = await inst.eval(`const bar = ${bar}; for (let i = 0; i < 6; i++) { const st = bar.state(); if (st.items[st.selected]?.tabId === ${JSON.stringify(openTab)}) return true; bar.key("ArrowDown", {}); } return false;`);
+    await sleep(300);
+    await inst.eval(`${bar}.key("Enter", { metaKey: true }); return true;`);
+    return until(async () => {
+      const tabs = await tabsAt("https://example.net/open");
+      return { ok: offered?.ok && picked && tabs.some((t) => t.profileId === "work") && tabs.some((t) => t.id === openTab && t.profileId === "default"), tabs, offered, picked };
+    });
+  });
+  record("⌘↩ on a suggestion for an open Personal tab a rule sends to Work opens a Work tab", switchTo?.ok, switchTo);
 
 } finally {
   await inst.quit();

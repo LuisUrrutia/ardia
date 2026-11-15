@@ -160,7 +160,7 @@ export function Omnibox({
     }
     switch (s.kind) {
       case "page":
-        if (s.tabId && !(opensTab && disposition === "newTab")) {
+        if (s.tabId && (disposition === "current" || disposition === "split")) {
           switchFromBar(s.tabId, s.url, tabId, disposition);
           if (hero && disposition === "current") reset();
           return;
