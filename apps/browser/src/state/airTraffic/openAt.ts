@@ -91,9 +91,9 @@ export function routeTypedUrl(url: string, from: TypedFrom): boolean {
   const context: OpeningContext = { tabId: from.tabId ?? null, windowId: w.id, profileId, via: "typed" };
   const key = from.tabId && from.disposition === "current" ? `tab:${from.tabId}` : null;
   settleOpening(gateOpening(url, context, key), key, (verdict) => {
-    if (verdict && "cancel" in verdict) return;
-    const target = verdict?.url ?? url;
     const now = store();
+    if ((verdict && "cancel" in verdict) || !now.windows[w.id] || (from.tabId && !now.tabs[from.tabId])) return;
+    const target = verdict?.url ?? url;
     const open: PlacedOpen = { url: target, how, from: isSmall(now, w.id) ? undefined : { windowId: w.id, tabId: from.tabId }, gated: true };
     const placement = placeInside(now, currentAirTraffic(), target, source);
     if (placement) {

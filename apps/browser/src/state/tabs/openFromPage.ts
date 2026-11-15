@@ -104,6 +104,7 @@ function keepPopupOpener(page: PageRef) {
 function openRoutedLink(s: BrowserState, request: OpenWindowRequest, page: PageRef, w: BrowserState["windows"][string], gated: boolean) {
   const { url, disposition } = request;
   const how = disposition === "background" ? "background" : disposition === "window" ? "window" : "foreground";
+  if (how === "foreground" && request.opens !== "tab" && page.tabId && !s.tabs[page.tabId]) return;
   const from = { windowId: w.id, tabId: page.tabId };
   const placement = placeInside(s, currentAirTraffic(), url, { ...from, profileId: page.profileId }, how !== "foreground" || !!request.keyed);
   if (placement) {

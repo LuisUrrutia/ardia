@@ -271,6 +271,29 @@ test("a newer navigation in the source tab cancels a routed click still waiting 
   }
 });
 
+test("a routed address or a plain routed click still waiting on tab.opening opens nothing once its source is gone", async () => {
+  const { work, w, source, personal } = fresh([(wk) => rule({ when: site("example.net"), profileId: wk })]);
+  const waiting = [];
+  setOpeningGate((url) => (url.startsWith("https://example.net/") ? new Promise((resolve) => waiting.push(() => resolve(null))) : null));
+  try {
+    S().newTab(w, { url: "https://second.example/", gated: true });
+    routeTypedUrl("https://example.net/typed", { windowId: w, tabId: source, disposition: "current" });
+    openFromPage({ url: "https://example.net/clicked", disposition: "foreground", opens: "page", userGesture: true, routed: true, keyed: false }, { windowId: w, tabId: source, profileId: personal });
+    const other = S().createWindow({ url: "https://third.example/" });
+    routeTypedUrl("https://example.net/bar", { windowId: other, disposition: "newTab" });
+    await tick();
+    S().closeTab(source);
+    S().closeWindow(other);
+    for (const release of waiting) release();
+    await tick();
+    assert.equal(waiting.length, 3);
+    assert.equal(Object.values(S().tabs).some((t) => t.profileId === work), false);
+    assert.equal(Object.keys(S().windows).length, 1);
+  } finally {
+    setOpeningGate(null);
+  }
+});
+
 test("routes reach pages again when a rule or a group changes, and ones the page bridge refuses are sent again later", async () => {
   const { work } = fresh([(wk) => rule({ when: site("example.net"), profileId: wk })]);
   stub.pageLinkRoutes.failNext = 2;
