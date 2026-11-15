@@ -26,7 +26,7 @@ export function useRouteGroups(profileId: string | null): RouteGroup[] {
   return useMemo(() => Array.from({ length: flat.length / 2 }, (_, i) => ({ key: flat[2 * i]!, name: flat[2 * i + 1]! })), [flat]);
 }
 
-export const useRouteTargetsStamp = (): string => useBrowser(routeTargetsStamp);
+export const useWatchRouteTargets = (): void => void useBrowser(routeTargetsStamp);
 
 export const useRouteGroupName = (profileId: string | null, groupKey: string | undefined): string | null =>
   useBrowser((s) => (profileId && groupKey ? routeGroupName(s, profileId, groupKey) : null));
