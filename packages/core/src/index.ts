@@ -9,6 +9,7 @@ export * from "./extensionRows.ts";
 export * from "./fuzzy.ts";
 export * from "./idn.ts";
 export * from "./ingestKeys.ts";
+export * from "./matchSpec.ts";
 export * from "./omnibox.ts";
 export * from "./openTabs.ts";
 export * from "./providerConfig.ts";

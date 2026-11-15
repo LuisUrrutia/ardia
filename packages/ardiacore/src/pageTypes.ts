@@ -1,3 +1,4 @@
+import type { MatchSpec } from "@ardia/core";
 import type { ViewProps } from "react-native";
 import type { ExternalAppRequest } from "./permissions";
 import type { FaviconImage } from "./favicons";
@@ -294,6 +295,5 @@ export type DiscardOutcome = "discarded" | "already" | "refused" | "unsupported"
 export type DiscardRefusal = number;
 export type DiscardReason = "external" | "urgent" | "proactive" | "suggested" | "frozen";
 
-export type PageMatchSpec = { all: boolean; schemes: string[]; host: string; sub: boolean; port: string; file: boolean; path: string };
 export type PageGlobSpec = { glob: string };
-export type PageLinkRoute = { spec: PageMatchSpec | PageGlobSpec | "any"; profile: string | null; open: "tab" | "window" | "littleArdia"; group: string | null };
+export type PageLinkRoute = { spec: MatchSpec | PageGlobSpec | "any"; profile: string | null; open: "tab" | "window" | "littleArdia"; group: string | null };

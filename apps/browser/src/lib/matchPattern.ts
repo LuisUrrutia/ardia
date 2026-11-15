@@ -1,6 +1,7 @@
+import type { MatchSpec } from "@ardia/core";
 import { effectivePort, urlParts } from "./urlParts";
 
-export type MatchSpec = { all: boolean; schemes: string[]; host: string; sub: boolean; port: string; file: boolean; path: string };
+export type { MatchSpec };
 
 const SCRIPT_SCHEMES = ["http", "https", "file", "ftp"];
 const WILDCARD_SCHEMES = ["http", "https"];

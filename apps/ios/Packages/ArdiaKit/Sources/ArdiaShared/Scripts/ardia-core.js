@@ -181,6 +181,7 @@ __define("packages/core/src/index.ts", function (exports, __require) {
   __exportAll(exports, __require("packages/core/src/fuzzy.ts"));
   __exportAll(exports, __require("packages/core/src/idn.ts"));
   __exportAll(exports, __require("packages/core/src/ingestKeys.ts"));
+  __exportAll(exports, __require("packages/core/src/matchSpec.ts"));
   __exportAll(exports, __require("packages/core/src/omnibox.ts"));
   __exportAll(exports, __require("packages/core/src/openTabs.ts"));
   __exportAll(exports, __require("packages/core/src/providerConfig.ts"));
@@ -194,6 +195,7 @@ __define("packages/core/src/index.ts", function (exports, __require) {
   __exportAll(exports, __require("packages/core/src/textFragment.ts"));
   __exportAll(exports, __require("packages/core/src/theme.ts"));
   __exportAll(exports, __require("packages/core/src/webStore.ts"));
+
 
 
 
@@ -2003,6 +2005,11 @@ function ingestSourceOf(key                           )                      {
   for (const [source, value] of Object.entries(INGEST_KEYS)) if (key === value) return source                ;
   return null;
 }
+
+});
+__define("packages/core/src/matchSpec.ts", function (exports, __require) {
+
+                                                                                                                                   
 
 });
 __define("packages/core/src/openTabs.ts", function (exports, __require) {
