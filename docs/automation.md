@@ -398,7 +398,7 @@ Hooks that answer before something happens, with a deadline after which Ardia do
 ## Air Traffic Control
 
 Settings › Air Traffic Control is the same `link.opening` route engine with rules the user makes in Settings, kept in
-the data dir (`air-traffic.json`, version 1: an ordered `rules` list and a `fallback`), not in the config folder.
+the data dir (`air-traffic.json`, version 2: an ordered `rules` list and a `fallback`), not in the config folder.
 
 - **Order.** For a link from another app (after `tab.opening` has had its say): the Settings rules from the top, the
   first enabled one that fits answering; then the hooks.json `link.opening` hooks as above; then the Everything Else
@@ -425,8 +425,8 @@ the data dir (`air-traffic.json`, version 1: an ordered `rules` list and a `fall
   change, so the native fast path never opens a link before the rules have seen it. `air-traffic.json` is in native's
   fast-path fingerprint, so a file changed while Ardia was closed holds the first link of the next launch too. A
   change is saved before the store takes it, so a save that fails changes neither the rules nor the hold.
-- **Older builds.** `groupKey` is optional, so the file stays version 1: a build without it ignores it, and a group
-  rule opens a plain tab in its profile.
+- **Versions.** Version 2 added `groupKey`; a version 1 file reads unchanged, its rules naming no group. A build from
+  before a version reads a newer file as no rules, since downgrades aren't supported.
 - **Source apps.** The app (bundle id, name) of the last 20 distinct apps that sent a link is kept in
   `link-sources.json` for the app picker, on this Mac only and never sent.
 - **Try a Link** runs the same `traceOpening` and `traceLink` the real decision runs (`state/automation/decisions.ts`),

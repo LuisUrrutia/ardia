@@ -222,6 +222,7 @@ test("the saved rules read back, an unversioned file upgrades, and a newer or br
   assert.deepEqual(rules.parseAirTraffic(unversioned), config);
   assert.deepEqual(rules.parseAirTraffic(JSON.stringify({ ...JSON.parse(json), version: 99 })), rules.NO_AIR_TRAFFIC);
   assert.deepEqual(rules.parseAirTraffic("{ nope"), rules.NO_AIR_TRAFFIC);
+  assert.deepEqual(rules.parseAirTraffic(JSON.stringify({ ...JSON.parse(json), version: 1 })), config, "a version 1 file reads unchanged: its rules name no group");
   const mixed = { version: 1, rules: [config.rules[0], { ...config.rules[1], when: { kind: "site", host: "Not A Host" } }, { ...config.rules[0] }, { id: "x", enabled: true, from: null, when: { kind: "any" }, profileId: null, open: "split" }], fallback: { open: "tab" } };
   assert.deepEqual(rules.parseAirTraffic(JSON.stringify(mixed)), { rules: [config.rules[0]], fallback: null });
 });

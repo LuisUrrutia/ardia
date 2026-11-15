@@ -6,9 +6,9 @@ import { parseSaved, unchanged, versionedJson, type Migrations } from "../../lib
 import { urlParts } from "../../lib/urlParts";
 
 export const AIR_TRAFFIC_DOC = "air-traffic.json";
-export const AIR_TRAFFIC_VERSION = 1;
+export const AIR_TRAFFIC_VERSION = 2;
 export const MAX_AIR_TRAFFIC_RULES = 100;
-const MIGRATIONS: Migrations = { 0: unchanged };
+const MIGRATIONS: Migrations = { 0: unchanged, 1: unchanged };
 
 export const OPEN_AS = ["tab", "window", "littleArdia"] as const;
 export type OpenAs = (typeof OPEN_AS)[number];
