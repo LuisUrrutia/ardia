@@ -1,7 +1,7 @@
 import { pageKey } from "./pageText.ts";
 import type { Suggestion } from "./suggestion.ts";
 
-export type ProviderRowInput = { title: string; url: string; subtitle?: string; icon?: string | null; badge?: string };
+export type ProviderRowInput = { title: string; url: string; subtitle?: string; icon?: string | null; badge?: string; search?: true };
 
 export type ProviderSection = { id: string; title: string; rows: readonly ProviderRowInput[] };
 
@@ -71,6 +71,7 @@ export function safeProviderRows(section: { id: string; title: string }, rows: u
       url,
       icon: providerIcon(r.icon),
       ...(subtitle ? { subtitle } : {}),
+      ...(r.search === true ? { search: true as const } : {}),
     });
   }
   return out;
@@ -91,14 +92,17 @@ export function parseProviderReply(body: unknown, template?: string): ProviderRo
     const rows: ProviderRowInput[] = [];
     texts.forEach((text, i) => {
       if (typeof text !== "string" || !text.trim()) return;
-      const url = typeof urls[i] === "string" && urls[i] ? (urls[i] as string) : template ? fillProviderTemplate(template, text) : null;
+      const given = typeof urls[i] === "string" && urls[i] ? (urls[i] as string) : null;
+      const url = given ?? (template ? fillProviderTemplate(template, text) : null);
       if (!url) return;
       const subtitle = details[i];
-      rows.push({ title: text, url, ...(typeof subtitle === "string" && subtitle ? { subtitle } : {}) });
+      rows.push({ title: text, url, ...(typeof subtitle === "string" && subtitle ? { subtitle } : {}), ...(given ? {} : { search: true as const }) });
     });
     return rows;
   }
-  return body.filter((row): row is ProviderRowInput => !!row && typeof row === "object" && !Array.isArray(row)) as ProviderRowInput[];
+  return body
+    .filter((row): row is ProviderRowInput => !!row && typeof row === "object" && !Array.isArray(row))
+    .map(({ search: _, ...row }) => row);
 }
 
 export function matchProviderRows(rows: readonly ProviderRowInput[], text: string): ProviderRowInput[] {

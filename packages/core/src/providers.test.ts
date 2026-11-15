@@ -126,10 +126,13 @@ test("static rows match every typed word, title starts first", () => {
 test("remote replies: OpenSearch with URLs, OpenSearch through the template, or a plain list", () => {
   assert.deepEqual(parseProviderReply(["q", ["a", "b"], ["first", ""], ["https://x.com/a", ""]], "https://x.com/s?q={query}"), [
     { title: "a", url: "https://x.com/a", subtitle: "first" },
-    { title: "b", url: "https://x.com/s?q=b" },
+    { title: "b", url: "https://x.com/s?q=b", search: true },
   ]);
   assert.deepEqual(parseProviderReply(["q", ["a"]]), []);
   assert.deepEqual(parseProviderReply([{ title: "t", url: "https://y.com/" }, 4, "x"]), [{ title: "t", url: "https://y.com/" }]);
+  assert.deepEqual(parseProviderReply([{ title: "t", url: "https://y.com/", search: true }]), [{ title: "t", url: "https://y.com/" }], "a reply can't call its own row a search");
+  const shown = safeProviderRows({ id: "p", title: "P" }, parseProviderReply(["q", ["a", "b"], [], ["https://x.com/a", ""]], "https://x.com/s?q={query}"));
+  assert.deepEqual(shown.map((row) => [row.url, row.search ?? false]), [["https://x.com/a", false], ["https://x.com/s?q=b", true]], "a row built from the search template stays a search, so Air Traffic Control leaves it in place");
   assert.deepEqual(parseProviderReply({ title: "t" }), []);
 });
 

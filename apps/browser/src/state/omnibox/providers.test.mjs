@@ -175,7 +175,7 @@ test("remote fetch: debounced, no cookies or referrer, cached per profile, abort
     assert.deepEqual(await debounced(t, fetchRemoteRows(template, "on", "z|normal", new AbortController().signal)), [], "a text without a URL and no link template is dropped");
     f.calls.length = 0;
     const rows = await debounced(t, fetchRemoteRows(template, "on", "a|normal", new AbortController().signal, "https://go.example.com/{query}"));
-    assert.deepEqual(rows, [{ title: "one", url: "https://go.example.com/one" }, { title: "two", url: "https://go.example.com/two" }], "through the provider's link template, never the endpoint");
+    assert.deepEqual(rows, [{ title: "one", url: "https://go.example.com/one", search: true }, { title: "two", url: "https://go.example.com/two", search: true }], "through the provider's link template, never the endpoint, and marked as searches like the typed query");
     assert.equal(f.calls[0].url, "https://s.example.com/?q=on");
     assert.equal(f.calls[0].xhr.withCredentials, false);
     assert.equal(f.calls[0].xhr.sent.method, "GET");

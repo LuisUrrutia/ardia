@@ -2189,7 +2189,7 @@ __define("packages/core/src/providerRows.ts", function (exports, __require) {
 const { pageKey } = __require("packages/core/src/pageText.ts");
                                                   
 
-                                                                                                                       
+                                                                                                                                      
 
                                                                                                
 
@@ -2259,6 +2259,7 @@ function safeProviderRows(section                               , rows         ,
       url,
       icon: providerIcon(r.icon),
       ...(subtitle ? { subtitle } : {}),
+      ...(r.search === true ? { search: true          } : {}),
     });
   }
   return out;
@@ -2279,14 +2280,17 @@ function parseProviderReply(body         , template         )                   
     const rows                     = [];
     texts.forEach((text, i) => {
       if (typeof text !== "string" || !text.trim()) return;
-      const url = typeof urls[i] === "string" && urls[i] ? (urls[i]          ) : template ? fillProviderTemplate(template, text) : null;
+      const given = typeof urls[i] === "string" && urls[i] ? (urls[i]          ) : null;
+      const url = given ?? (template ? fillProviderTemplate(template, text) : null);
       if (!url) return;
       const subtitle = details[i];
-      rows.push({ title: text, url, ...(typeof subtitle === "string" && subtitle ? { subtitle } : {}) });
+      rows.push({ title: text, url, ...(typeof subtitle === "string" && subtitle ? { subtitle } : {}), ...(given ? {} : { search: true          }) });
     });
     return rows;
   }
-  return body.filter((row)                          => !!row && typeof row === "object" && !Array.isArray(row))                      ;
+  return body
+    .filter((row)                          => !!row && typeof row === "object" && !Array.isArray(row))
+    .map(({ search: _, ...row }) => row);
 }
 
 function matchProviderRows(rows                             , text        )                     {
