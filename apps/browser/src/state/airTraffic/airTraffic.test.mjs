@@ -7,6 +7,7 @@ const rules = await import("./rules.ts");
 const sources = await import("./sourceApps.ts");
 const store = await import("./store.ts");
 const { previewLink } = await import("./preview.ts");
+const { routeTargetsStamp } = await import("./groups.ts");
 const { decideLink, traceLink } = await import("../automation/decisions.ts");
 const { reloadHooks } = await import("../automation/hookRules.ts");
 const { approveRule, resetApprovalsForTests } = await import("../automation/approvals.ts");
@@ -333,6 +334,24 @@ test("a link from another app with a group rule joins the group's copy in the wi
   const [again] = tabsAt("https://mail.example/2");
   const copy = Object.values(S().groups).find((g) => (g.pinKey ?? g.id) === key);
   assert.ok(again && copy?.tabIds.includes(again.id), "a parked pinned group comes back in a new window and takes the link");
+});
+
+test("the routing targets' stamp changes when a profile or one of its tab groups appears, is renamed or goes away", () => {
+  const work = fresh();
+  const stamps = [routeTargetsStamp(S())];
+  const w = S().createWindow({ url: "https://inbox.example/", profileId: work });
+  stamps.push(routeTargetsStamp(S()));
+  const group = S().groupTabs([S().windows[w].tabIds.find((id) => S().tabs[id].profileId === work)], { name: "Inbox", pinned: false });
+  stamps.push(routeTargetsStamp(S()));
+  S().updateGroup(group, { name: "Mail" });
+  stamps.push(routeTargetsStamp(S()));
+  S().ungroup(group);
+  stamps.push(routeTargetsStamp(S()));
+  S().createProfile({ name: "Side" });
+  stamps.push(routeTargetsStamp(S()));
+  assert.equal(stamps[1], stamps[0], "a new window alone changes no target");
+  for (let i = 2; i < stamps.length; i++) assert.notEqual(stamps[i], stamps[i - 1], `step ${i}`);
+  assert.equal(stamps[4], stamps[1], "ungrouping leaves the targets as they were before the group");
 });
 
 test("a link from another app lands where its rule says, before any tab exists", async () => {

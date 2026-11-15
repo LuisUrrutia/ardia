@@ -28,6 +28,12 @@ export function routeGroups(s: GroupWorld, profileId: string): RouteGroup[] {
   return groups;
 }
 
+export const routeTargetsStamp = (s: GroupWorld & Pick<BrowserState, "profiles" | "profileOrder">): string =>
+  s.profileOrder
+    .filter((id) => s.profiles[id])
+    .map((id) => [`${id}=${s.profiles[id]!.name}`, ...routeGroups(s, id).map((g) => `${g.key}=${g.name}`)].join("\t"))
+    .join("\n");
+
 export const hasRouteGroup = (s: Pick<BrowserState, "groups" | "parkedPins">, profileId: string, key: string): boolean =>
   Object.values(s.groups).some((g) => g.profileId === profileId && pinKeyOf(g) === key) || !!s.parkedPins[profileId]?.groups.some((g) => g.id === key);
 

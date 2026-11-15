@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { View } from "react-native";
-import { useAirTrafficConfig, useLinkHooks, useRoutableProfiles, useRouteGroupName, type LinkHookRow, type LinkHookState, type RoutableProfile } from "../../../state/airTraffic/hooks";
+import { useAirTrafficConfig, useLinkHooks, useRoutableProfiles, useRouteGroupName, useRouteTargetsStamp, type LinkHookRow, type LinkHookState, type RoutableProfile } from "../../../state/airTraffic/hooks";
 import { moveAirTrafficRule, removeAirTrafficRule, setAirTrafficFallback, updateAirTrafficRule } from "../../../state/airTraffic/store";
 import { previewLink, type LinkPreview } from "../../../state/airTraffic/preview";
 import type { OpeningTrace } from "../../../state/automation/decisions";
@@ -152,8 +152,12 @@ function TryLink() {
   const { rules } = useAirTrafficConfig();
   const [app, setApp] = useState<SourceApp | null>(null);
   const [typed, setTyped] = useState("");
+  const targets = useRouteTargetsStamp();
   const extras = useMemo(() => rules.map((r) => r.from), [rules]);
-  const preview = typed.trim() ? previewLink(typed, app ? { bundleId: app.bundleId, appName: app.name } : null) : null;
+  const preview = useMemo(
+    () => (typed.trim() ? previewLink(typed, app ? { bundleId: app.bundleId, appName: app.name } : null) : null),
+    [typed, app, rules, targets],
+  );
   const result = preview?.ok ? caughtBy(preview) : null;
   return (
     <Group of="airTraffic.tryLink">

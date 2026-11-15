@@ -7,7 +7,7 @@ import type { HookSpec } from "../automation/hookFile";
 import { useBrowser } from "../browser/store";
 import { isIncognitoProfile } from "../browser/model";
 import { useAirTraffic } from "./store";
-import { routeGroupName, routeGroups, type RouteGroup } from "./groups";
+import { routeGroupName, routeGroups, routeTargetsStamp, type RouteGroup } from "./groups";
 import type { AirTrafficConfig, SourceApp } from "./rules";
 
 export const useAirTrafficConfig = (): AirTrafficConfig => useAirTraffic((s) => s.config);
@@ -25,6 +25,8 @@ export function useRouteGroups(profileId: string | null): RouteGroup[] {
   const flat = useBrowser(useShallow((s) => (profileId ? routeGroups(s, profileId).flatMap((g) => [g.key, g.name]) : [])));
   return useMemo(() => Array.from({ length: flat.length / 2 }, (_, i) => ({ key: flat[2 * i]!, name: flat[2 * i + 1]! })), [flat]);
 }
+
+export const useRouteTargetsStamp = (): string => useBrowser(routeTargetsStamp);
 
 export const useRouteGroupName = (profileId: string | null, groupKey: string | undefined): string | null =>
   useBrowser((s) => (profileId && groupKey ? routeGroupName(s, profileId, groupKey) : null));
