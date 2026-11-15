@@ -11,7 +11,7 @@ export const airTrafficRows = {
         rules: {
           title: "Link rules",
           description: "Checked from the top. The first rule that fits a link decides where it opens.",
-          keywords: [...LINK_WORDS, "work profile", "rule", "add rule"],
+          keywords: [...LINK_WORDS, "work profile", "rule", "add rule", "tab group", "group"],
         },
       },
     },
