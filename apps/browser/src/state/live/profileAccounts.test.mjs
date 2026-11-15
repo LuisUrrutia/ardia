@@ -168,6 +168,8 @@ test("a Google refresh that lands after the profile reconnected another account 
   assert.equal(JSON.parse(keychainItems.get(`gdrive:${personal}`)).refresh_token, "refresh-B");
   assert.equal(live().accounts[personal].gdrive.login, "b@gmail.com");
   assert.deepEqual(driveAsked, ["Bearer token-B"]);
+  assert.equal(live().accounts[personal].gdrive.clientId, "client-B");
+  assert.equal(live().config.googleClientId, "client-A", "another profile's Connect sheet doesn't start with this profile's client ID");
 });
 
 test("a Google refresh that lands after its profile was deleted leaves no keychain item behind", async () => {

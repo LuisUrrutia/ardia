@@ -2,7 +2,7 @@ import { CONFLUENCE_CQL, DRIVE_QUERY, mapBitbucket, mapConfluence, mapDrive, map
 import { createGithubClient } from "./githubClient";
 import { basic, deleteSecret, endpoints, form, getSecret, request, setSecret } from "./net";
 import { useBrowser } from "../browser/store";
-import { accountOf, live, removeProfileAccounts, saveLiveDurably, setAccount, setLegacyAccount, updateConfig } from "./store";
+import { accountOf, live, removeProfileAccounts, saveLiveDurably, setAccount, setLegacyAccount } from "./store";
 import { LiveError, type CompletionState, type LiveAccount, type LiveFolder, type LiveItem, type LiveSourceId } from "./types";
 import { noteLiveFolders } from "../telemetry/liveFolders";
 
@@ -256,7 +256,6 @@ export async function connectGoogle(profileId: string, clientId: string, clientS
     headers: { Authorization: `Bearer ${json.access_token}` },
   }).catch(() => null);
   await saveConnection(profileId, "gdrive", JSON.stringify(tokens), { ...account(about?.user?.emailAddress ?? "Google Drive", about?.user?.displayName ?? null, about?.user?.photoLink ?? null), clientId });
-  updateConfig({ googleClientId: clientId });
 }
 
 export function disconnect(profileId: string, source: LiveSourceId) {

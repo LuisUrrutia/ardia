@@ -1,7 +1,7 @@
 import { mapBitbucket, mapConfluence, mapDrive, mapNotion, type BitbucketPR, type BitbucketStatuses, type ConfluenceSearch, type DriveFiles, type NotionSearch, type NotionUsers } from "../../browser/src/state/live/documents";
 import { createGithubClient } from "../../browser/src/state/live/githubClient";
 import { useBrowser } from "../../browser/src/state/browser/store";
-import { accountOf, live, removeProfileAccounts, saveLiveDurably, setAccount, setLegacyAccount, updateConfig } from "../../browser/src/state/live/store";
+import { accountOf, live, removeProfileAccounts, saveLiveDurably, setAccount, setLegacyAccount } from "../../browser/src/state/live/store";
 import { LiveError, type CompletionState, type LiveAccount, type LiveFolder, type LiveItem, type LiveSourceId } from "../../browser/src/state/live/types";
 import { noteLiveFolders } from "../../browser/src/state/telemetry/liveFolders";
 import { hostLiveClient, type LiveClient } from "./hostLive.ts";
@@ -230,7 +230,6 @@ export function linuxLiveSources(client: LiveClient, { loaded = new Promise<void
       () => client.connect<{ about: { user?: { displayName: string; emailAddress: string; photoLink?: string } } | null }>("gdrive", profileId, { clientId, clientSecret, code, verifier, redirectUri }),
       ({ about }) => ({ ...account(about?.user?.emailAddress ?? "Google Drive", about?.user?.displayName ?? null, about?.user?.photoLink ?? null), clientId }),
     );
-    updateConfig({ googleClientId: clientId });
   }
 
   function disconnect(profileId: string, source: LiveSourceId) {
