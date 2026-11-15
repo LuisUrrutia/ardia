@@ -43,11 +43,15 @@ test("pages get the enabled any-app rules that also take Ardia's links, in order
     rule({ when: site("apps.example"), inside: false }),
     rule({ when: site("gone.example"), profileId: "gone" }),
     (w) => rule({ when: site("closed.example"), profileId: w, groupKey: "closed" }),
+    (w) => rule({ when: { kind: "pattern", pattern: "*Git*" }, profileId: w }),
+    (w) => rule({ when: { kind: "pattern", pattern: "github.com/ardia/*" }, profileId: w }),
     rule({ open: "window" }),
   ]);
   assert.deepEqual(pageLinkRoutes(S(), store.currentAirTraffic()), [
     { spec: parseMatchPattern("*://*.work.example/*"), profile: work, open: "tab", group: null },
     { spec: parseMatchPattern("https://*.docs.example/*"), profile: null, open: "littleArdia", group: null },
+    { spec: { glob: "*git*" }, profile: work, open: "tab", group: null },
+    { spec: { glob: "github.com/ardia/*" }, profile: work, open: "tab", group: null },
     { spec: "any", profile: null, open: "window", group: null },
   ]);
 });

@@ -50,11 +50,15 @@ export function patternProblem(pattern: string): string | null {
   return "error" in spec ? spec.error : null;
 }
 
+export function wildcardGlob(pattern: string): string {
+  const lower = pattern.toLowerCase();
+  return lower.includes("*") ? lower : `*${lower}*`;
+}
+
 function wildcardMatches(pattern: string, url: string): boolean {
   const parts = urlParts(url);
   if (!parts?.host) return false;
-  const lower = pattern.toLowerCase();
-  const glob = lower.includes("*") ? lower : `*${lower}*`;
+  const glob = wildcardGlob(pattern);
   const hosts = new Set([parts.host, displayHost(parts.host)]);
   const rest = glob.includes("/") ? `${parts.path}${parts.query}`.toLowerCase() : "";
   return [...hosts].some((host) => globMatches(glob, `${host}${rest}`));

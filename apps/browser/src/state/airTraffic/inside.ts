@@ -4,7 +4,7 @@ import type { BrowserState } from "../browser/store";
 import { isIncognitoProfile } from "../browser/model";
 import { isSmall } from "../windows/small";
 import { groupHolding, hasRouteGroup } from "./groups";
-import { linkMatches, targetUsable, type AirTrafficConfig, type AirTrafficRule, type LinkCondition, type OpenAs } from "./rules";
+import { isWildcardPattern, linkMatches, targetUsable, wildcardGlob, type AirTrafficConfig, type AirTrafficRule, type LinkCondition, type OpenAs } from "./rules";
 
 export type InsidePlacement = { profileId: string; open: OpenAs; groupKey: string | null };
 export type InsideSource = { profileId: string; windowId?: string; tabId?: string };
@@ -38,6 +38,7 @@ export function placeInside(s: World, config: AirTrafficConfig, url: string, fro
 
 function pageSpec(when: LinkCondition): PageLinkRoute["spec"] | null {
   if (when.kind === "any") return "any";
+  if (when.kind === "pattern" && isWildcardPattern(when.pattern)) return { glob: wildcardGlob(when.pattern) };
   const spec = parseMatchPattern(when.kind === "site" ? `*://*.${when.host}/*` : when.pattern);
   return "error" in spec ? null : spec;
 }

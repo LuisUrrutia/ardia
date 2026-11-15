@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { matchesUrl, parseMatchPattern } from "../lib/matchPattern.ts";
+const { linkMatches, wildcardGlob } = await import("../state/airTraffic/rules.ts");
 
 const script = readFileSync(new URL("../../../../packages/ardiacore/ios/page_script.js", import.meta.url), "utf8");
 const start = script.indexOf("  let peekKey = null;\n");
@@ -778,6 +779,28 @@ test("the page script matches a route exactly as lib/matchPattern matches a rule
       const href = new URL(given, "https://page.example/dir/").href;
       const expected = pattern === "any" || matchesUrl(spec(pattern), href);
       assert.equal(env.gesture([link], {}).defaultPrevented, expected, `${pattern} ${href}`);
+    }
+  }
+});
+
+const WILDCARDS = [
+  ["*git*", ["https://github.com/x", "https://gitlab.example/", "https://example.com/git", "https://GIT.example./a"]],
+  ["github", ["https://www.github.com/", "https://gist.example/github"]],
+  ["github.com/ardia/*", ["https://github.com/ardia/x?q=1", "https://github.com/ARDIA/y", "https://github.com/other/x", "https://www.github.com/ardia/x"]],
+  ["*.example.com", ["https://www.example.com/", "https://example.com/", "https://www.example.com.evil.test/"]],
+  ["*/docs/a%20b*", ["https://example.com/docs/a b/c", "https://example.com/docs/ab"]],
+  ["*bücher*", ["https://bücher.example/x", "https://xn--other-zwa.example/", "https://bucher.example/x"]],
+];
+
+test("the page script matches a wildcard route as an Air Traffic Control rule does, and defers a Unicode wildcard on an IDN host to the app", () => {
+  for (const [pattern, urls] of WILDCARDS) {
+    for (const given of urls) {
+      const env = environment();
+      routing(env, [{ spec: { glob: wildcardGlob(pattern) }, profile: "work", open: "tab", group: null }]);
+      const href = new URL(given, "https://page.example/dir/").href;
+      const deferred = /[^\x00-\x7f]/.test(pattern) && /(^|\.)xn--/.test(new URL(href).hostname);
+      const expected = deferred || linkMatches({ kind: "pattern", pattern }, href);
+      assert.equal(env.gesture([env.link(given)], {}).defaultPrevented, expected, `${pattern} ${href}`);
     }
   }
 });

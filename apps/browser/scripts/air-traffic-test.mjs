@@ -8,7 +8,7 @@ import { launch, session, sleep } from "../../../scripts/lib/instance.mjs";
 const appArg = process.argv.slice(2).find((a) => !a.startsWith("--"));
 if (!appArg) {
   console.error("usage: node air-traffic-test.mjs <Debug Ardia.app>");
-  console.error("Checks Air Traffic Control in a hidden instance: a link from another app (a real GURL Apple Event) into a tab group, trusted plain and ⌘-clicks on a Personal page that a rule sends to Work (one on a link whose page handler stops the click's propagation), a click no rule takes, and an address typed in a Personal tab's address bar.");
+  console.error("Checks Air Traffic Control in a hidden instance: a link from another app (a real GURL Apple Event) into a tab group, trusted plain and ⌘-clicks on a Personal page that a rule sends to Work (one on a link whose page handler stops the click's propagation, one on a link a wildcard rule takes), a click no rule takes, and an address typed in a Personal tab's address bar.");
   process.exit(2);
 }
 const app = resolve(appArg);
@@ -20,6 +20,7 @@ const failures = [];
 const PAGE = `<!doctype html><title>source</title><body style="margin:0;font:20px sans-serif">
 <a id="routed" href="https://example.net/routed" style="display:block;height:60px">routed</a>
 <a id="meta" href="https://example.net/meta" style="display:block;height:60px">meta</a>
+<a id="wild" href="https://docs.example.edu/wild" style="display:block;height:60px">wild</a>
 <a id="plain" href="/plain" style="display:block;height:60px">plain</a>
 <div id="root"><a id="stopped" href="https://example.net/stopped" style="display:block;height:60px">stopped</a></div>
 <script>document.getElementById("root").addEventListener("click", (e) => e.stopPropagation());</script></body>`;
@@ -63,6 +64,7 @@ try {
     const key = ac.store.getState().groups[g].pinKey ?? g;
     ac.airTraffic.addAirTrafficRule({ enabled: true, from: null, when: { kind: "site", host: "example.net" }, profileId: "work", open: "tab", inside: true });
     ac.airTraffic.addAirTrafficRule({ enabled: true, from: null, when: { kind: "site", host: "example.org" }, profileId: "work", open: "tab", groupKey: key, inside: false });
+    ac.airTraffic.addAirTrafficRule({ enabled: true, from: null, when: { kind: "pattern", pattern: "*example.edu*" }, profileId: "work", open: "tab", inside: true });
     s.activate("t1");
     return g;`);
   await sleep(1000);
@@ -112,6 +114,16 @@ try {
     return { ok: !!tab && tab.profileId === "work" && source === `${origin}/`, tab, source };
   });
   record("a routed link whose page handler stops the click's propagation still opens in Work", stopped?.ok, stopped);
+
+  await inst.eval(`ac.store.getState().activate("t1"); return true;`);
+  await sleep(800);
+  await click("wild");
+  const wild = await until(async () => {
+    const [tab] = await tabsAt("https://docs.example.edu/wild");
+    const source = await sourceUrl();
+    return { ok: !!tab && tab.profileId === "work" && source === `${origin}/`, tab, source };
+  });
+  record("a click on a link a wildcard rule takes opens in Work", wild?.ok, wild);
 
   const before = await inst.eval(`return Object.keys(ac.store.getState().tabs).length;`);
   await click("plain");

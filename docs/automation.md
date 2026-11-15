@@ -433,11 +433,14 @@ for any app can also take the links you click and the addresses you type in Ardi
   The placement is one module, `state/airTraffic/inside.ts`, shared by typed addresses, routed clicks and the routes
   handed to pages.
 - **Clicks.** The page script (`packages/ardiacore/ios/page_script.js`, the one that handles Peek and Split clicks)
-  gets the inside rules as `{ spec, profile, open, group }` (`spec` is the parsed match pattern, or `"any"`) with its
-  config and the tab's profile, and native pushes new routes to every open page (`webView.setLinkRoutes`; JS sends
-  them again when a rule, a profile or a group changes, and retries with backoff while the bridge refuses). Its
-  `matchesSpec` is `lib/matchPattern.ts`'s `matchesUrl` (`platform/pageScriptPeek.test.mjs` runs the same cases
-  through both). After the page's own click handlers (a late window listener, so a click the page prevented stays the
+  gets the inside rules as `{ spec, profile, open, group }` (`spec` is the parsed match pattern, `{ glob }` for a
+  wildcard, or `"any"`) with its config and the tab's profile, and native pushes new routes to every open page
+  (`webView.setLinkRoutes`; JS sends them again when a rule, a profile or a group changes, and retries with backoff
+  while the bridge refuses). Its `matchesSpec` is `lib/matchPattern.ts`'s `matchesUrl`, and for a wildcard the rule's
+  own wildcard match (`platform/pageScriptPeek.test.mjs` runs the same cases through both). A wildcard with non-ASCII
+  characters on an IDN (`xn--`) host is left to the app, because the Unicode form of a host comes from `displayHost`
+  and its spoofing checks: the page routes the click and JS decides, opening it the click's own way when no rule
+  fits. After the page's own click handlers (a late window listener, so a click the page prevented stays the
   page's; when a page handler stops the click's propagation before it reaches the window, as React's root does,
   a one-off listener added last on each node of the click's path, from the target up to the document, catches it on
   the node where it stopped, and all of them go once one routes, the window listener runs or the click's turn ends),

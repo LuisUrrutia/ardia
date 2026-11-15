@@ -1020,8 +1020,23 @@
       if (!spec.sub || host[0] === "[" || apply(test, /^\d+\.\d+\.\d+\.\d+$/, [host])) return false;
       return host.length > pattern.length + 1 && apply(sliceText, host, [host.length - pattern.length - 1]) === "." + pattern;
     };
+    const DEFERRED = "deferred";
+    const matchesGlob = (glob, href) => {
+      let url;
+      try {
+        url = new URLCtor(href);
+      } catch (e) {
+        return false;
+      }
+      const host = hostnameOf(url);
+      if (!host) return false;
+      const rest = apply(test, /\//, [glob]) ? lowered(pathnameOf(url) + searchOf(url)) : "";
+      if (globMatches(glob, host + rest)) return true;
+      return apply(test, /[^\x00-\x7f]/, [glob]) && apply(test, /(^|\.)xn--/, [host]) ? DEFERRED : false;
+    };
     const matchesSpec = (spec, href) => {
       if (spec === "any") return true;
+      if (spec && typeof spec === "object" && typeof spec.glob === "string") return matchesGlob(spec.glob, href);
       if (!spec || typeof spec !== "object" || !isArray(spec.schemes) || typeof spec.host !== "string" || typeof spec.path !== "string") return false;
       let url;
       try {
@@ -1066,7 +1081,7 @@
       const here = route.profile === null || route.profile === ownProfile;
       if (!here) return true;
       if ((keyed || route.open === "tab") && !route.group) return false;
-      return !isTop || !matchesSpec(route.spec, location.href);
+      return !isTop || matchesSpec(route.spec, location.href) !== true;
     };
     let routeSent = null;
     handlers.routeRefused = (refusal) => {
