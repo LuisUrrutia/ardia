@@ -360,6 +360,24 @@ test("the token saved before profiles is copied natively to every profile, never
   useBrowser.getState().deleteProfile(work);
 });
 
+test("a delete the keyring refuses leaves the token readable, so the old item and a disconnected profile's token are tried again", async () => {
+  const hex = Buffer.from(LIVE_FIXTURE.notion.token).toString("hex");
+  const legacyPath = join(keys, "live-token-notion");
+  writeFileSync(legacyPath, `ardia-live-1\ntoken=${hex}\n`);
+  chmodSync(legacyPath, 0o600);
+  await call("Tool.restart", []);
+  assert.equal(await call("ArdiaLive.legacy", ["notion", "exists"]), true);
+  await call("Tool.locked", [true]);
+  await assert.rejects(call("ArdiaLive.legacy", ["notion", "forget"]), { code: "ERR_LIVE_KEYRING_LOCKED" });
+  await assert.rejects(call("ArdiaLive.disconnect", ["notion", "default"]), { code: "ERR_LIVE_KEYRING_LOCKED" });
+  await call("Tool.locked", [false]);
+  assert.equal(await call("ArdiaLive.legacy", ["notion", "exists"]), true);
+  assert.equal(existsSync(legacyPath), true);
+  assert.equal((await SOURCES.notion.fetch(docFolder)).length, 1);
+  assert.equal(await call("ArdiaLive.legacy", ["notion", "forget"]), true);
+  assert.equal(await call("ArdiaLive.legacy", ["notion", "exists"]), false);
+});
+
 test("disconnecting cancels in-flight work, deletes the protected token and survives a restart", async () => {
   services.state.delayMs.set("api.notion.com", 3000);
   const inflight = rejectsWith(SOURCES.notion.fetch(docFolder), "other", /Cancelled/);

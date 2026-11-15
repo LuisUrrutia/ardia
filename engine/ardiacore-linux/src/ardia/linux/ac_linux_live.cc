@@ -1204,7 +1204,7 @@ void LiveCore::Cancel(const std::string& id, Reply reply) {
 
 void LiveCore::Disconnect(Account account, Reply reply) {
   Cached& cached = cache_[account];
-  ++cached.generation;
+  const uint64_t generation = ++cached.generation;
   cached.state = Cached::State::kAbsent;
   cached.credential.reset();
   std::vector<uint64_t> owned;
@@ -1212,8 +1212,10 @@ void LiveCore::Disconnect(Account account, Reply reply) {
     if (call.account == account) owned.push_back(serial);
   }
   for (const uint64_t serial : owned) Finish(serial, Cancelled());
-  store_.Delete(account, [reply = std::move(reply)](KeyStatus status) {
+  store_.Delete(account, [this, account, generation, reply = std::move(reply)](KeyStatus status) {
     if (status == KeyStatus::kOk || status == KeyStatus::kNotFound) return reply(Outcome::Value(JsonValue::Bool(true)));
+    Cached& current = cache_[account];
+    if (current.generation == generation && current.state == Cached::State::kAbsent) current.state = Cached::State::kUnknown;
     reply(KeyringFailure(status));
   });
 }
