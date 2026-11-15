@@ -15,7 +15,7 @@ type Viewer = { login: string; name: string | null; avatarUrl: string };
 type DevicePoll = { status: "pending" } | { status: "slowDown"; interval?: number } | { status: "connected"; viewer: Viewer | null };
 
 export type LiveLocks = { request<T>(name: string, callback: () => Promise<T>): Promise<T> };
-export type LiveDurability = { mark(): number; save(mark: number): Promise<void> };
+export type LiveDurability = typeof liveDurability;
 export type LinuxLiveOptions = { loaded?: Promise<void>; locks?: LiveLocks; durable?: LiveDurability };
 
 const sharedDurability: LiveDurability = { mark: () => 0, save: () => saveLiveDurably() };
