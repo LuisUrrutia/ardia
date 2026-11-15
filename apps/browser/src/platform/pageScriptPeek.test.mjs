@@ -790,15 +790,16 @@ const WILDCARDS = [
   ["*.example.com", ["https://www.example.com/", "https://example.com/", "https://www.example.com.evil.test/"]],
   ["*/docs/a%20b*", ["https://example.com/docs/a b/c", "https://example.com/docs/ab"]],
   ["*bücher*", ["https://bücher.example/x", "https://café.example/", "https://bucher.example/x"]],
+  ["b*.example", ["https://bücher.example/", "https://bucher.example/", "https://xn--bcher-kva.example/"]],
 ];
 
-test("the page script matches a wildcard route as an Air Traffic Control rule does, and defers a Unicode wildcard on an IDN host to the app", () => {
+test("the page script matches a wildcard route as an Air Traffic Control rule does, and defers one it doesn't match on an IDN host to the app", () => {
   for (const [pattern, urls] of WILDCARDS) {
     for (const given of urls) {
       const env = environment();
       routing(env, [{ spec: { glob: wildcardGlob(pattern) }, profile: "work", open: "tab", group: null }]);
       const href = new URL(given, "https://page.example/dir/").href;
-      const deferred = /[^\x00-\x7f]/.test(pattern) && /(^|\.)xn--/.test(new URL(href).hostname);
+      const deferred = /(^|\.)xn--/.test(new URL(href).hostname);
       const expected = deferred || linkMatches({ kind: "pattern", pattern }, href);
       assert.equal(env.gesture([env.link(given)], {}).defaultPrevented, expected, `${pattern} ${href}`);
     }

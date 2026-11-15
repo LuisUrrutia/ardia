@@ -1032,7 +1032,7 @@
       if (!host) return false;
       const rest = apply(test, /\//, [glob]) ? lowered(pathnameOf(url) + searchOf(url)) : "";
       if (globMatches(glob, host + rest)) return true;
-      return apply(test, /[^\x00-\x7f]/, [glob]) && apply(test, /(^|\.)xn--/, [host]) ? DEFERRED : false;
+      return apply(test, /(^|\.)xn--/, [host]) ? DEFERRED : false;
     };
     const matchesSpec = (spec, href) => {
       if (spec === "any") return true;
