@@ -464,10 +464,10 @@ for any app can also take the links you click and the addresses you type in Ardi
   `download`, the Peek or Split modifier, ⌥-, ⌃- and
   middle clicks, keyboard activation, URLs over 8192 characters, WebKit pages (they run WebKit's page script), forms,
   script navigations, `window.open` and redirects.
-- **Typed addresses.** The address bar, the command bar and the new-tab bar route an address the same way
-  (`state/airTraffic/openAt.ts` › `routeTypedUrl`): it opens at the destination as a foreground tab (⇧↩: a window there)
-  and the source tab is left alone. Searches, provider searches (a provider's own URL template), calculator results
-  and ⌥↩ (Split View) are never routed.
+- **Typed addresses.** The address bar, the command bar, the new-tab bar and Paste and Go from the address bar's menu
+  route an address the same way (`state/airTraffic/openAt.ts` › `routeTypedUrl`): it opens at the destination as a
+  foreground tab (⇧↩: a window there) and the source tab is left alone. Searches, provider searches (a provider's own
+  URL template), calculator results and ⌥↩ (Split View) are never routed.
 - **No approval.** The user makes these rules in Settings, so they count as approved. hooks.json route hooks still need
   approval in Advanced › Automation; the pane lists them read-only with their state.
 - **The hold.** An enabled rule or an Everything Else choice turns the incoming-link hold on, reported again on every

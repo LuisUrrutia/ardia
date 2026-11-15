@@ -289,6 +289,30 @@ test("a plain routed click whose page Chromium navigated while tab.opening waite
   }
 });
 
+test("Paste and Go from the address bar's menu routes like a typed address, and Paste and Search stays in the tab", async () => {
+  const { work, source } = fresh([(wk) => rule({ profileId: wk })]);
+  const { showUrlBarMenu } = await import("../omnibox/paste.ts");
+  const shell = stub.shellNativeModules.ArdiaShell;
+  const menus = stub.shellNativeModules.ArdiaMenus;
+  const [readText, showMenu] = [shell.readText, menus.showMenu];
+  menus.showMenu = () => Promise.resolve("pasteAndGo");
+  try {
+    shell.readText = () => Promise.resolve("https://example.net/pasted");
+    await showUrlBarMenu(S().tabs[source]);
+    await tick();
+    assert.ok(tabsAt("https://example.net/pasted").some((t) => t.profileId === work));
+    assert.notEqual(S().tabs[source].page.nav?.url, "https://example.net/pasted");
+    shell.readText = () => Promise.resolve("what to cook tonight");
+    await showUrlBarMenu(S().tabs[source]);
+    await tick();
+    assert.match(S().tabs[source].page.nav?.url ?? "", /what%20to%20cook|what\+to\+cook/);
+    assert.equal(Object.values(S().tabs).filter((t) => t.profileId === work).length, 1);
+  } finally {
+    shell.readText = readText;
+    menus.showMenu = showMenu;
+  }
+});
+
 test("a routed address or a plain routed click still waiting on tab.opening opens nothing once its source is gone", async () => {
   const { work, w, source, personal } = fresh([(wk) => rule({ when: site("example.net"), profileId: wk })]);
   const waiting = [];

@@ -5,6 +5,7 @@ import { menuSections, withOptionAlternate, type MenuKey } from "../app/menuSect
 import { currentSettings } from "../browser/current";
 import { menuShortcut } from "../commands/commandShortcuts";
 import { navigate } from "../tabs/actions";
+import { routeTypedUrl } from "../airTraffic/openAt";
 import { defaultSearchEngine } from "../settings/settings";
 import { canShare, shareTab } from "../site/share";
 import { copyPageUrl } from "../site/selection";
@@ -39,10 +40,16 @@ export function urlBarMenuItems({ paste, shareable, keys = menuShortcut }: { pas
   );
 }
 
+function pasteAndGo(tab: Pick<Tab, "id" | "windowId">, action: PasteAction) {
+  const url = pasteTarget(action);
+  if (action.kind === "go" && routeTypedUrl(url, { windowId: tab.windowId, tabId: tab.id, disposition: "current" })) return;
+  navigate(tab.id, url);
+}
+
 export async function showUrlBarMenu(tab: Pick<Tab, "id" | "url" | "title" | "windowId"> & Partial<Pick<Tab, "customTitle">>) {
   const action = await clipboardPasteAction();
   const choice = await showMenu(urlBarMenuItems({ paste: action, shareable: canShare(tab) }));
-  if (choice === "pasteAndGo" && action) navigate(tab.id, pasteTarget(action));
+  if (choice === "pasteAndGo" && action) pasteAndGo(tab, action);
   if (choice === "copy") void copyPageUrl(tab.id);
   if (choice === "copyMarkdown") copyText(markdownLink(tab.customTitle || tab.title, tab.url));
   if (choice?.startsWith("share:via:")) void shareTab({ url: tab.url, title: tab.title, customTitle: tab.customTitle ?? null }, tab.windowId, choice.slice("share:via:".length));
