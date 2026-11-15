@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { docs } from "../../test-native/index.ts";
+import { docs, failedSaves } from "../../test-native/index.ts";
+import { createLivePersistence } from "../../platform/livePersistence.ts";
 import { updateCalendarSettings, live, setLive } from "./store.ts";
 
 test("default persistence keeps its 800ms debounce and versioned projection", (context) => {
@@ -45,4 +46,18 @@ test("default engine keeps its completion animation timer and ordinary saved cle
     context.mock.timers.tick(800);
     assert.deepEqual(JSON.parse(docs.get("live.json")).items[id], []);
   } finally { SOURCES.github.fetch = previousFetch; SOURCES.github.resolveGone = previousGone; }
+});
+
+test("when two durable saves fail together, the retry writes the newer one", async (context) => {
+  context.mock.timers.enable({ apis: ["setTimeout"] });
+  const binding = createLivePersistence();
+  docs.delete("live.json");
+  failedSaves.on = true;
+  const older = binding.saveDurably({ accounts: { work: { github: { login: "work" } } } });
+  const newer = binding.saveDurably({ accounts: { work: { github: { login: "work" } }, home: { github: { login: "home" } } } });
+  await assert.rejects(older);
+  await assert.rejects(newer);
+  failedSaves.on = false;
+  context.mock.timers.tick(800);
+  assert.deepEqual(Object.keys(JSON.parse(docs.get("live.json")).accounts), ["work", "home"]);
 });

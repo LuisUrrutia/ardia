@@ -43,6 +43,7 @@ export type LivePersistenceBinding = {
 export function createLivePersistence(onSave?: (changed: boolean, kind?: "write" | "intent") => void): LivePersistenceBinding {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let pending: LiveProjection | undefined;
+  let latest: LiveProjection | undefined;
   let counter = 0;
   let lastSaved: string | undefined;
   const save = () => {
@@ -63,7 +64,7 @@ export function createLivePersistence(onSave?: (changed: boolean, kind?: "write"
     },
     start: () => {},
     changed: (_before, after) => {
-      pending = after;
+      pending = latest = after;
       clearTimeout(timer);
       timer = setTimeout(save, 800);
     },
@@ -72,8 +73,9 @@ export function createLivePersistence(onSave?: (changed: boolean, kind?: "write"
       clearTimeout(timer);
       timer = undefined;
       pending = undefined;
+      latest = projection;
       return saveDocument(DOC, versionedJson(projection, DOC_VERSION)).catch((error: unknown) => {
-        pending ??= projection;
+        pending = latest;
         timer ??= setTimeout(save, 800);
         return Promise.reject(error);
       });
