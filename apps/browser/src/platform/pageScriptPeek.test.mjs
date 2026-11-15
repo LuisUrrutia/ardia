@@ -766,6 +766,7 @@ const PARITY = [
   ["https://[::1]/*", ["https://[::1]/a", "https://[::2]/a"]],
   ["https://xn--bcher-kva.example/*", ["https://bücher.example/x", "https://bucher.example/x"]],
   ["https://example.com/*?q=*", ["https://example.com/search?q=1", "https://example.com/search"]],
+  ["https://example.com/*?*", ["https://example.com/?", "https://example.com/", "https://example.com/a?b", "https://example.com/a?#x"]],
   ["<all_urls>", ["https://any.example/", "http://other.example/x"]],
   ["any", ["https://any.example/", "http://other.example/x"]],
 ];
@@ -791,6 +792,7 @@ const WILDCARDS = [
   ["*/docs/a%20b*", ["https://example.com/docs/a b/c", "https://example.com/docs/ab"]],
   ["*bücher*", ["https://bücher.example/x", "https://café.example/", "https://bucher.example/x"]],
   ["b*.example", ["https://bücher.example/", "https://bucher.example/", "https://xn--bcher-kva.example/"]],
+  ["example.com/?", ["https://example.com/?", "https://example.com/", "https://example.com/?#top"]],
 ];
 
 test("the page script matches a wildcard route as an Air Traffic Control rule does, and defers one it doesn't match on an IDN host to the app", () => {

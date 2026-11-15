@@ -986,6 +986,8 @@
     const portOf = getter(URL.prototype, "port");
     const pathnameOf = getter(URL.prototype, "pathname");
     const searchOf = getter(URL.prototype, "search");
+    const hrefOf = getter(URL.prototype, "href");
+    const queryOf = (url) => searchOf(url) || (apply(test, /^[^#]*\?(#|$)/, [hrefOf(url)]) ? "?" : "");
     const decodePath = decodeURI;
     const DEFAULT_PORTS = { http: "80", https: "443", ftp: "21" };
     const withoutDots = (text) => {
@@ -1030,7 +1032,7 @@
       }
       const host = hostnameOf(url);
       if (!host) return false;
-      const rest = apply(test, /\//, [glob]) ? lowered(pathnameOf(url) + searchOf(url)) : "";
+      const rest = apply(test, /\//, [glob]) ? lowered(pathnameOf(url) + queryOf(url)) : "";
       if (globMatches(glob, host + rest)) return true;
       return apply(test, /(^|\.)xn--/, [host]) ? DEFERRED : false;
     };
@@ -1049,7 +1051,7 @@
       if (spec.all) return true;
       if (!spec.file && !hostMatches(spec, hostnameOf(url))) return false;
       if (spec.port !== "*" && spec.port !== (portOf(url) || DEFAULT_PORTS[scheme] || "-1")) return false;
-      const path = pathnameOf(url) + searchOf(url);
+      const path = pathnameOf(url) + queryOf(url);
       if (spec.path === path + "/*") return true;
       let decoded;
       try {
