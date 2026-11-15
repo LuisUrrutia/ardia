@@ -16,7 +16,7 @@ test("default persistence keeps its 800ms debounce and versioned projection", (c
   assert.equal(docs.has("live.json"), false);
   context.mock.timers.tick(1);
   const saved = JSON.parse(docs.get("live.json"));
-  assert.equal(saved.version, 2);
+  assert.equal(saved.version, 3);
   assert.equal(saved.calendar.showPreview, false);
   assert.equal(saved.calendar.showTimeToNext, false);
   for (const key of ["status", "completing", "showAll"]) assert.equal(key in saved, false);

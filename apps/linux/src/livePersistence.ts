@@ -19,5 +19,6 @@ export function createLivePersistence(onSave?: (changed: boolean, kind?: "write"
     completionFence: client.completionFence,
     beginRefresh: client.beginRefresh,
     flush: () => { void client.flush(); },
+    saveDurably: async () => { await client.flush(); },
   };
 }
