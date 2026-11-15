@@ -279,6 +279,7 @@ export const cancelledDownloads: string[] = [];
 export const endedWebKitSessions: string[] = [];
 export const removedStagings: string[] = [];
 export const stagingRemovals = { ok: true };
+export const pageLinkRoutes = { failNext: 0, sent: [] as unknown[][] };
 export const deletedProfileData: string[] = [];
 export const profileDataLeft = new Map<string, string[]>();
 export const revealedTabs: string[] = [];
@@ -543,6 +544,11 @@ const fakeModules = {
     setCommandScrollZoom: () => null,
     setLittleArdiaOpensNewTabLinks: () => null,
     setPopupsOpenAsTabs: () => null,
+    setLinkRoutes: ({ routes }) => {
+      if (pageLinkRoutes.failNext > 0 && pageLinkRoutes.failNext--) throw new Error("the page bridge isn't ready");
+      pageLinkRoutes.sent.push(routes);
+      return null;
+    },
     setAutoPictureInPicture: () => null,
     setVideoUpscaling: () => null,
     setVideoUpscalingTestConditions: () => null,

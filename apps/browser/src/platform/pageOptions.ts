@@ -1,5 +1,7 @@
-import { call } from "@ardia/ardiacore";
+import { call, type PageLinkRoute } from "@ardia/ardiacore";
 import type { SearchEngine } from "@ardia/core";
+
+export type { PageLinkRoute } from "@ardia/ardiacore";
 
 export const setPeekModifier = (modifier: "alt" | "shift" | "off") => call("webView.setPeekModifier", { modifier });
 export const setSplitLinkModifier = (modifier: "alt" | "altShift") => call("webView.setSplitLinkModifier", { modifier });
@@ -13,3 +15,4 @@ export const setSearchEngineName = ({ name, keyword, url }: SearchEngineIdentity
   call("search.setEngineName", { name, keyword, url });
 export const setLittleArdiaOpensNewTabLinks = (enabled: boolean) => call("webView.setLittleArdiaOpensNewTabLinks", { enabled });
 export const setPopupsOpenAsTabs = (enabled: boolean) => call("webView.setPopupsOpenAsTabs", { enabled });
+export const setLinkRoutes = (routes: PageLinkRoute[]) => call("webView.setLinkRoutes", { routes });

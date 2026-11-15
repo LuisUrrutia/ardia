@@ -67,20 +67,26 @@ export function openFromNewTabBar(windowId: string, target: NewTabTarget, url: s
   const s = store();
   if (!url || !s.windows[windowId] || !s.windowUi[windowId]?.panel.newTab) return;
   s.closePanel(windowId);
+  openAtNewTabTarget(windowId, target, url);
+}
+
+export function openAtNewTabTarget(windowId: string, target: NewTabTarget, url: string, gated = false) {
+  const s = store();
+  if (!s.windows[windowId]) return;
   const into = target.kind === "into" ? s.tabs[target.tabId] : undefined;
   if (into && into.windowId === windowId && isEmptyCardTab(s, into)) {
-    store().navigate(into.id, url);
+    store().navigate(into.id, url, { gated });
     return noteBarLoad(into.id);
   }
   const group = target.kind === "group" ? s.groups[target.groupId] : undefined;
   if (group && group.windowId === windowId && group.profileId === s.windows[windowId]!.profileId) {
     const id = store().newTabInGroup(group.id);
     if (!id) return;
-    store().navigate(id, url);
+    store().navigate(id, url, { gated });
     store().activate(id);
     return noteBarLoad(id);
   }
-  noteBarLoad(store().newTab(windowId, { url, newTabCommand: true }));
+  noteBarLoad(store().newTab(windowId, { url, newTabCommand: true, gated }));
 }
 
 const launchTabs = new Set<string>();

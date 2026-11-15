@@ -46,3 +46,7 @@ export function groupWindow(s: BrowserState, profileId: string, key: string): st
   const order = [...new Set([...s.ui.focusOrder, ...s.windowOrder])];
   return order.find((id) => copies.some((g) => g.windowId === id)) ?? copies[0]?.windowId;
 }
+
+export function groupHolding(s: Pick<BrowserState, "groups">, profileId: string, key: string, tabId: string): boolean {
+  return Object.values(s.groups).some((g) => g.profileId === profileId && pinKeyOf(g) === key && g.tabIds.includes(tabId));
+}

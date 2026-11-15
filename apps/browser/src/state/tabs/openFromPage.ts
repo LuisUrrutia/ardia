@@ -1,8 +1,8 @@
 import { discardOffered, type OpenWindowRequest } from "../../platform/tabs";
 import { openWindow } from "../browser/actions";
-import { useBrowser } from "../browser/store";
+import { useBrowser, type BrowserState } from "../browser/store";
 import { engineProfile } from "../browser/model";
-import { peekSourceOf } from "../peek/peek";
+import { peekSourceOf, peeksLinksToOtherSites } from "../peek/peek";
 import { leavesSite, newTabLinkRoute, siteLanding } from "../peek/newTabLinkRoute";
 import { openLittleArdia } from "../littleArdia/actions";
 import { isSmall, originalProfile, privateWindowProfile } from "../windows/small";
@@ -12,6 +12,10 @@ import { gateOpening, isGatedUrl, settleOpening } from "./openingGate";
 import { noteBackgroundTab } from "./newTabNotice";
 import { noteLinkTabWait } from "../telemetry/usage";
 import { notePopupOpenedAsTab } from "../telemetry/popupTabCounts";
+import { noteAirTrafficLink } from "../telemetry/airTrafficCounts";
+import { openAtPlacement } from "../airTraffic/openAt";
+import { placeInside } from "../airTraffic/inside";
+import { currentAirTraffic } from "../airTraffic/store";
 
 export type { OpenWindowRequest } from "../../platform/tabs";
 
@@ -22,8 +26,9 @@ const UNGATED = new Set(["current", "peek", "incognito"]);
 export function openFromPage(request: OpenWindowRequest, page: PageRef) {
   if (request.linkWait) noteLinkTabWait(request.linkWait);
   if (UNGATED.has(request.disposition) || !isGatedUrl(request.url)) return openNow(request, page, false);
-  const gated = gateOpening(request.url, { tabId: page.tabId ?? null, windowId: page.windowId, profileId: page.profileId, via: "link" }, null);
-  settleOpening(gated, null, (verdict) => {
+  const key = request.routed && request.opens !== "tab" && request.disposition === "foreground" && page.tabId ? `tab:${page.tabId}` : null;
+  const gated = gateOpening(request.url, { tabId: page.tabId ?? null, windowId: page.windowId, profileId: page.profileId, via: "link" }, key);
+  settleOpening(gated, key, (verdict) => {
     if (verdict && "cancel" in verdict) {
       if (request.adoptId) void discardOffered(request.adoptId).catch(() => false);
       return;
@@ -49,6 +54,7 @@ function openNow(request: OpenWindowRequest, page: PageRef, gated: boolean) {
   const w = s.windows[page.windowId];
   if (!w) return;
   if (request.popup) notePopupOpenedAsTab();
+  if (request.routed) return openRoutedLink(s, request, page, w, gated);
   const peekSource = peekSourceOf(s, page.tabId);
   if (disposition === "current" || (disposition === "peek" && (peekSource || isSmall(s, w.id)))) {
     if (page.tabId) s.navigate(page.tabId, url, { userInitiated: false });
@@ -93,6 +99,33 @@ function keepPopupOpener(page: PageRef) {
   const s = useBrowser.getState();
   const sourceId = peekSourceOf(s, page.tabId);
   if (sourceId) s.peekToTab(page.windowId, { activate: false, sourceId });
+}
+
+function openRoutedLink(s: BrowserState, request: OpenWindowRequest, page: PageRef, w: BrowserState["windows"][string], gated: boolean) {
+  const { url, disposition } = request;
+  const how = disposition === "background" ? "background" : disposition === "window" ? "window" : "foreground";
+  const from = { windowId: w.id, tabId: page.tabId };
+  const placement = placeInside(s, currentAirTraffic(), url, { ...from, profileId: page.profileId }, how !== "foreground" || !!request.keyed);
+  if (placement) {
+    noteAirTrafficLink("click");
+    return openAtPlacement(placement, { url, how, from, gated, via: "link" });
+  }
+  const pageUrl = page.tabId ? (s.tabs[page.tabId]?.url ?? "") : "";
+  if (how === "foreground" && !request.keyed && request.opens !== "tab" && page.tabId && w.kind === "main" && peeksLinksToOtherSites(s, page.tabId) && leavesSite(url, pageUrl)) {
+    return void s.openPeek(page.tabId, url, request.point ?? null, { landing: siteLanding(pageUrl, "source") });
+  }
+  if (how === "foreground" && request.opens !== "tab" && page.tabId) return s.navigate(page.tabId, url, { userInitiated: true, gated });
+  if (how === "foreground" && !request.keyed && page.tabId) {
+    if (isSmall(s, w.id) && s.settings.littleArdiaOpensNewTabLinks) return s.navigate(page.tabId, url, { userInitiated: true, gated });
+    const route = newTabLinkRoute(s, page.tabId, url);
+    if (route === "peek") return void s.openPeek(page.tabId, url, request.point ?? null);
+    if (route === "otherSite") return void s.openPeek(page.tabId, url, request.point ?? null, { landing: siteLanding(s.tabs[page.tabId]!.url, "tab") });
+    if (route === "littleArdia") return void openLittleArdia(url, page.profileId);
+  }
+  if (how === "window") return void openWindow(w.kind === "private" ? { kind: "private", url, profileId: originalProfile(s, w) } : { profileId: page.profileId, url });
+  const background = how === "background" || isSmall(s, w.id) || page.profileId !== w.profileId;
+  const opened = s.newTab(w.id, { url, openerId: peekSourceOf(s, page.tabId) ?? page.tabId, profileId: page.profileId, background, gated });
+  if (background) noteBackgroundTab(w.id, opened, page.tabId);
 }
 
 export function pageProfileId(windowId: string, pageProfile: string): string {

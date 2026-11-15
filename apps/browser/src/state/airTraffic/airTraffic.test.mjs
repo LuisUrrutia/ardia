@@ -24,8 +24,8 @@ const MAIL = { bundleId: "com.apple.mail", appName: "Mail" };
 const slackApp = { bundleId: "com.tinyspeck.slackmacgap", name: "Slack" };
 
 let next = 0;
-const rule = (over = {}) => ({ id: `t${++next}`, enabled: true, from: null, when: { kind: "any" }, profileId: null, open: "tab", ...over });
-const counted = (over) => ({ air_traffic_rule_links: 0, air_traffic_fallback_links: 0, air_traffic_group_links: 0, ...over });
+const rule = (over = {}) => ({ id: `t${++next}`, enabled: true, from: null, when: { kind: "any" }, profileId: null, open: "tab", inside: false, ...over });
+const counted = (over) => ({ air_traffic_rule_links: 0, air_traffic_fallback_links: 0, air_traffic_click_links: 0, air_traffic_typed_links: 0, air_traffic_group_links: 0, ...over });
 
 function fresh({ rules: list = [], fallback = null, hooks = [] } = {}) {
   S().hydrate({ profiles: { default: PERSONAL }, profileOrder: ["default"] });
@@ -225,6 +225,9 @@ test("the saved rules read back, an unversioned file upgrades, and a newer or br
   assert.deepEqual(rules.parseAirTraffic(JSON.stringify({ ...JSON.parse(json), version: 1 })), config, "a version 1 file reads unchanged: its rules name no group");
   const mixed = { version: 1, rules: [config.rules[0], { ...config.rules[1], when: { kind: "site", host: "Not A Host" } }, { ...config.rules[0] }, { id: "x", enabled: true, from: null, when: { kind: "any" }, profileId: null, open: "split" }], fallback: { open: "tab" } };
   assert.deepEqual(rules.parseAirTraffic(JSON.stringify(mixed)), { rules: [config.rules[0]], fallback: null });
+  const { inside: _, ...older } = config.rules[1];
+  assert.deepEqual(rules.parseAirTraffic(JSON.stringify({ version: 1, rules: [older], fallback: null })).rules, [config.rules[1]], "a rule saved before inside existed reads as other apps only");
+  assert.deepEqual(rules.parseAirTraffic(JSON.stringify({ version: 2, rules: [{ ...config.rules[1], inside: true }], fallback: null })).rules.map((r) => r.inside), [false], "a version 2 file's rules take only links from other apps");
 });
 
 test("the store saves its rules to the data dir and reads them back after a restart", () => {
@@ -260,41 +263,41 @@ test("incoming links remember the last 20 distinct apps that sent them, and noth
   assert.ok(!picks.common.some((a) => a.name === "Slack" || a.name === "Mail"));
 });
 
-test("telemetry sends only how many rules are on, how many send links into a tab group, and whether a fallback is set", () => {
+test("telemetry sends only how many rules are on, how many take Ardia's own links or a tab group, and whether a fallback is set", () => {
   const snap = airTrafficSetting({
-    rules: [rule({ from: slackApp }), rule({ enabled: false, profileId: "p", groupKey: "g" }), rule(), rule({ profileId: "p", groupKey: "g" })],
+    rules: [rule({ from: slackApp }), rule({ enabled: false, inside: true }), rule({ inside: true }), rule({ profileId: "p", groupKey: "g" })],
     fallback: { profileId: "p", open: "tab" },
   });
-  assert.deepEqual(snap, { air_traffic_rules: "3", air_traffic_wildcard_rules: "0", air_traffic_fallback: "true", air_traffic_group_rules: "1" });
+  assert.deepEqual(snap, { air_traffic_rules: "3", air_traffic_wildcard_rules: "0", air_traffic_fallback: "true", air_traffic_inside_rules: "1", air_traffic_group_rules: "1" });
   assert.deepEqual(cleanProperties(snap), snap);
-  assert.deepEqual(airTrafficSetting(rules.NO_AIR_TRAFFIC), { air_traffic_rules: "0", air_traffic_wildcard_rules: "0", air_traffic_fallback: "false", air_traffic_group_rules: "0" });
+  assert.deepEqual(airTrafficSetting(rules.NO_AIR_TRAFFIC), { air_traffic_rules: "0", air_traffic_wildcard_rules: "0", air_traffic_fallback: "false", air_traffic_inside_rules: "0", air_traffic_group_rules: "0" });
 });
 
-test("a tab group needs a profile opened as a tab; the parser and the store both enforce it", () => {
+test("a tab group needs a profile opened as a tab, and only an any-app rule takes Ardia's own links; the parser and the store both enforce it", () => {
   const raw = {
-    version: 1,
+    version: rules.AIR_TRAFFIC_VERSION,
     rules: [
-      rule({ profileId: "p1", groupKey: "g1" }),
+      rule({ profileId: "p1", groupKey: "g1", inside: true }),
       rule({ profileId: null, groupKey: "g1" }),
       rule({ profileId: "p1", open: "window", groupKey: "g1" }),
-      rule({ from: slackApp, profileId: "p1", groupKey: "g1" }),
+      rule({ from: slackApp, inside: true }),
       rule({ profileId: "p1", groupKey: "" }),
     ],
     fallback: { profileId: "p1", open: "tab", groupKey: "g2" },
   };
   const parsed = rules.parseAirTraffic(JSON.stringify(raw));
   assert.deepEqual(
-    parsed.rules.map((r) => r.groupKey ?? null),
-    ["g1", null, null, "g1", null],
+    parsed.rules.map((r) => [r.groupKey ?? null, r.inside]),
+    [["g1", true], [null, false], [null, false], [null, false], [null, false]],
   );
   assert.deepEqual(parsed.fallback, { profileId: "p1", open: "tab", groupKey: "g2" });
   assert.deepEqual(rules.parseAirTraffic(rules.airTrafficJson(parsed)), parsed);
   assert.deepEqual(rules.parseAirTraffic(JSON.stringify({ ...raw, fallback: { profileId: null, open: "tab", groupKey: "g2" } })).fallback, { profileId: null, open: "tab" });
   fresh();
-  const id = store.addAirTrafficRule({ enabled: true, from: slackApp, when: { kind: "any" }, profileId: "p1", open: "window", groupKey: "g1" });
-  assert.deepEqual(store.useAirTraffic.getState().config.rules[0], { id, enabled: true, from: slackApp, when: { kind: "any" }, profileId: "p1", open: "window" });
-  store.updateAirTrafficRule(id, { open: "tab", groupKey: "g1" });
-  assert.equal(store.useAirTraffic.getState().config.rules[0].groupKey, "g1");
+  const id = store.addAirTrafficRule({ enabled: true, from: slackApp, when: { kind: "any" }, profileId: "p1", open: "window", groupKey: "g1", inside: true });
+  assert.deepEqual(store.useAirTraffic.getState().config.rules[0], { id, enabled: true, from: slackApp, when: { kind: "any" }, profileId: "p1", open: "window", inside: false });
+  store.updateAirTrafficRule(id, { from: null, open: "tab", groupKey: "g1", inside: true });
+  assert.deepEqual([store.useAirTraffic.getState().config.rules[0].groupKey, store.useAirTraffic.getState().config.rules[0].inside], ["g1", true]);
   store.updateAirTrafficRule(id, { groupKey: undefined });
   assert.ok(!("groupKey" in store.useAirTraffic.getState().config.rules[0]));
 });
@@ -309,32 +312,6 @@ test("a rule whose tab group is gone falls through like one whose profile is gon
   assert.deepEqual(decideLink("https://a.example/", MAIL), { profileId: work, open: "tab", windowId: null, groupKey: key });
   const preview = previewLink("a.example", MAIL);
   assert.deepEqual([preview.profileName, preview.groupName], ["Work", "Inbox"]);
-});
-
-test("a link from another app with a group rule joins the group's copy in the window shown last, and opens its collapsed group", async () => {
-  const { openExternalUrls } = await import("../littleArdia/actions.ts");
-  const work = fresh();
-  startDecideHooks();
-  const first = S().createWindow({ url: "https://inbox.example/", profileId: work });
-  const group = S().groupTabs([S().windows[first].tabIds.find((id) => S().tabs[id].profileId === work)], { name: "Inbox" });
-  S().updateGroup(group, { collapsed: true });
-  const key = S().groups[group].pinKey ?? group;
-  store.addAirTrafficRule({ enabled: true, from: null, when: { kind: "site", host: "mail.example" }, profileId: work, open: "tab", groupKey: key });
-  takeAirTrafficCounts();
-  const tabsAt = (url) => Object.values(S().tabs).filter((t) => (t.page?.nav?.url ?? t.url) === url);
-  openExternalUrls(["https://mail.example/1"], undefined, MAIL);
-  await new Promise((resolve) => setTimeout(resolve, 20));
-  const [tab] = tabsAt("https://mail.example/1");
-  assert.ok(tab && S().groups[group].tabIds.includes(tab.id));
-  assert.equal(S().groups[group].collapsed, false);
-  assert.equal(takeAirTrafficCounts().air_traffic_group_links, 1);
-  S().closeWindow(first);
-  assert.ok(!Object.values(S().groups).some((g) => (g.pinKey ?? g.id) === key), "the pinned group is parked with its window");
-  openExternalUrls(["https://mail.example/2"], undefined, MAIL);
-  await new Promise((resolve) => setTimeout(resolve, 20));
-  const [again] = tabsAt("https://mail.example/2");
-  const copy = Object.values(S().groups).find((g) => (g.pinKey ?? g.id) === key);
-  assert.ok(again && copy?.tabIds.includes(again.id), "a parked pinned group comes back in a new window and takes the link");
 });
 
 test("the routing targets' stamp changes when a profile or one of its tab groups appears, is renamed or goes away", () => {

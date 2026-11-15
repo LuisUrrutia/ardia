@@ -64,7 +64,7 @@ static NSString *FairPlayConfig() {
   return JSONText(@{@"event" : @"config", @"on" : @(ArdiaFairPlay.enabled && ArdiaFairPlay.available)});
 }
 
-void AnswerHello(ArdiaCoreTab *tab, NSString *profile, NSString *frameId, BOOL main, NSString *verifiedOrigin) {
+void AnswerHello(ArdiaCoreTab *tab, NSString *profile, NSString *sidebar, NSString *frameId, BOOL main, NSString *verifiedOrigin) {
   NSString *origin = (main ? VerifiedOrigin(verifiedOrigin) : nil) ?: OriginOf(tab.url);
   __weak ArdiaCoreTab *weakTab = tab;
   void (^answer)(BOOL) = ^(BOOL blockAutoplay) {
@@ -78,6 +78,8 @@ void AnswerHello(ArdiaCoreTab *tab, NSString *profile, NSString *frameId, BOOL m
     config[@"peek"] = gPeekModifier;
     config[@"split"] = SplitLinkModifier();
     config[@"peekOtherSites"] = @([ArdiaTabRegistry viewForTab:to].peeksLinksToOtherSites);
+    config[@"routes"] = LinkRoutes();
+    config[@"sidebarProfile"] = sidebar ?: @"";
     if (PeekTracing()) config[@"peekTrace"] = @YES;
     if (TracingPictureInPicture()) config[@"pipTrace"] = @YES;
     [to callFrame:frameId kind:@"config" json:JSONText(config)];
@@ -147,7 +149,7 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
     if (main && ![(Text(dict, @"url", 8192) ?: @"about:") hasPrefix:@"about:"]) _requests.requestedURL = nil;
     [self noteScriptFrame:frameId main:main];
     [self callFrame:frameId kind:@"peekConfig" json:PeekConfigJSON(self)];
-    AnswerHello(tab, _profile, frameId, main, verifiedOrigin);
+    AnswerHello(tab, _profile, _sidebarProfile, frameId, main, verifiedOrigin);
     if (main) [ArdiaVideoMirror helloFromTab:tab frame:frameId];
     double startedMs = 0;
     if (main) [ArdiaProtectedVideo helloFromTab:tab origin:VerifiedOrigin(verifiedOrigin) bridged:Flag(dict, @"protectedVideo") started:Finite(dict, @"started", &startedMs) ? startedMs / 1000 : 0];
@@ -160,9 +162,12 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
     if (url.length && ![url hasPrefix:@"about:"] && SamePage(url, tab.url)) [self revealLittlePage:YES];
   } else if ([kind isEqualToString:@"peek"] && dict) {
     [self peekLink:dict frame:frameId main:main];
+  } else if ([kind isEqualToString:@"route"] && dict) {
+    [self routeLink:dict frame:frameId];
   } else if ([kind isEqualToString:@"peekHello"]) {
     [self noteScriptFrame:frameId main:main];
     [self callFrame:frameId kind:@"peekConfig" json:PeekConfigJSON(self)];
+    [self callFrame:frameId kind:@"routeConfig" json:[self linkRoutesJSON]];
   } else if ([kind isEqualToString:@"peekGone"]) {
     [self forgetScriptFrame:frameId];
   } else if ([kind isEqualToString:@"commandWheel"] && dict) {

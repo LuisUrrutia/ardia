@@ -6,16 +6,20 @@ import { parseSaved, unchanged, versionedJson, type Migrations } from "../../lib
 import { urlParts } from "../../lib/urlParts";
 
 export const AIR_TRAFFIC_DOC = "air-traffic.json";
-export const AIR_TRAFFIC_VERSION = 2;
+export const AIR_TRAFFIC_VERSION = 3;
 export const MAX_AIR_TRAFFIC_RULES = 100;
-const MIGRATIONS: Migrations = { 0: unchanged, 1: unchanged };
+const MIGRATIONS: Migrations = {
+  0: unchanged,
+  1: unchanged,
+  2: (doc) => ({ ...doc, rules: Array.isArray(doc.rules) ? doc.rules.map((rule: unknown) => (isFields(rule) ? { ...rule, inside: false } : rule)) : doc.rules }),
+};
 
 export const OPEN_AS = ["tab", "window", "littleArdia"] as const;
 export type OpenAs = (typeof OPEN_AS)[number];
 export type SourceApp = { bundleId: string | null; name: string };
 export type LinkCondition = { kind: "any" } | { kind: "site"; host: string } | { kind: "pattern"; pattern: string };
 export type AirTrafficTarget = { profileId: string | null; open: OpenAs; groupKey?: string };
-export type AirTrafficRule = AirTrafficTarget & { id: string; enabled: boolean; from: SourceApp | null; when: LinkCondition };
+export type AirTrafficRule = AirTrafficTarget & { id: string; enabled: boolean; from: SourceApp | null; when: LinkCondition; inside: boolean };
 export type AirTrafficConfig = { rules: AirTrafficRule[]; fallback: AirTrafficTarget | null };
 export type TargetUsable = (profileId: string, groupKey: string | null) => boolean;
 export type AirTrafficMatch = { by: "rule"; rule: AirTrafficRule; index: number; target: AirTrafficTarget } | { by: "fallback"; target: AirTrafficTarget };
@@ -76,7 +80,7 @@ export function linkMatches(when: LinkCondition, url: string): boolean {
 
 export const appMatches = (from: SourceApp | null, source: LinkSource) => !from || sourceMatches([from.bundleId ?? from.name], source);
 
-const targetUsable = (target: AirTrafficTarget, usable: TargetUsable) => target.profileId === null || usable(target.profileId, target.groupKey ?? null);
+export const targetUsable = (target: AirTrafficTarget, usable: TargetUsable) => target.profileId === null || usable(target.profileId, target.groupKey ?? null);
 
 const targetOf = (target: AirTrafficTarget): AirTrafficTarget => ({ profileId: target.profileId, open: target.open, ...(target.groupKey ? { groupKey: target.groupKey } : {}) });
 
@@ -88,6 +92,7 @@ export function cleanTarget(target: AirTrafficTarget): AirTrafficTarget {
 export const cleanRule = ({ groupKey, ...rule }: AirTrafficRule): AirTrafficRule => ({
   ...rule,
   ...cleanTarget({ profileId: rule.profileId, open: rule.open, groupKey }),
+  inside: rule.inside === true && rule.from === null,
 });
 
 export const sameTarget = (a: AirTrafficTarget | null, b: AirTrafficTarget | null) =>
@@ -135,7 +140,7 @@ function ruleOf(v: unknown): AirTrafficRule | null {
   const when = conditionOf(v.when);
   const target = targetFrom(v);
   if ((v.from !== null && !from) || !when || !target) return null;
-  return { id: v.id, enabled: v.enabled, from, when, ...target };
+  return { id: v.id, enabled: v.enabled, from, when, ...target, inside: v.inside === true && from === null };
 }
 
 export function parseAirTraffic(json: string | null | undefined): AirTrafficConfig {

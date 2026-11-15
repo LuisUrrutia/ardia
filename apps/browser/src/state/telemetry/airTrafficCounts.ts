@@ -1,10 +1,10 @@
 import { currentAirTraffic } from "../airTraffic/store";
 import { isWildcardPattern, type AirTrafficConfig } from "../airTraffic/rules";
 
-export type AirTrafficRouted = "rule" | "fallback" | "group";
+export type AirTrafficRouted = "rule" | "fallback" | "click" | "typed" | "group";
 
-const counts: Record<AirTrafficRouted, number> = { rule: 0, fallback: 0, group: 0 };
-const ROUTED: readonly AirTrafficRouted[] = ["rule", "fallback", "group"];
+const counts: Record<AirTrafficRouted, number> = { rule: 0, fallback: 0, click: 0, typed: 0, group: 0 };
+const ROUTED: readonly AirTrafficRouted[] = ["rule", "fallback", "click", "typed", "group"];
 
 export const noteAirTrafficLink = (by: AirTrafficRouted) => void counts[by]++;
 
@@ -20,6 +20,7 @@ export const airTrafficSetting = (config: AirTrafficConfig): Record<string, stri
     air_traffic_rules: String(enabled.length),
     air_traffic_wildcard_rules: String(enabled.filter((r) => r.when.kind === "pattern" && isWildcardPattern(r.when.pattern)).length),
     air_traffic_fallback: config.fallback ? "true" : "false",
+    air_traffic_inside_rules: String(enabled.filter((r) => r.inside).length),
     air_traffic_group_rules: String(enabled.filter((r) => r.groupKey).length),
   };
 };

@@ -31,8 +31,8 @@ export function AirTrafficPane() {
   return (
     <View>
       <PaneIntro>
-        Send links from other apps to the profile you want, as a new tab, a new window, Little Ardia or into a tab group. Links you click inside
-        Ardia stay where they are.
+        Send links from other apps to the profile you want, as a new tab, a new window, Little Ardia or into a tab group. A rule for any app can
+        also take the links you click and the addresses you type in Ardia.
       </PaneIntro>
 
       <SectionHeader anchor="airTraffic.rules" action={<Button title="Add Rule…" icon="plus" onPress={() => showSettingsSheet(<RuleSheet />)} />} />
@@ -76,7 +76,7 @@ function RuleRow({ rule, index, last, profiles }: { rule: AirTrafficRule; index:
   };
   return (
     <Row
-      title={`${fromLabel(rule.from)} · ${conditionLabel(rule.when)} → ${target ?? "a deleted profile"}`}
+      title={`${fromLabel(rule.from)}${rule.inside ? " and Ardia" : ""} · ${conditionLabel(rule.when)} → ${target ?? "a deleted profile"}`}
       description={ruleProblem(target, groupGone)}
     >
       <Toggle value={rule.enabled} accessibilityLabel="Use this rule" onChange={(enabled) => updateAirTrafficRule(rule.id, { enabled })} />
