@@ -5,10 +5,11 @@ const DOC = "live.json";
 const DOC_VERSION = 3;
 
 type SavedAccount = Record<string, unknown>;
+type SavedAuthConfig = { bitbucketUser?: string; confluenceEmail?: string; confluenceSite?: string; googleClientId?: string };
 
 function withLegacyAuth(accounts: unknown, config: unknown): Record<string, SavedAccount> {
   const flat = (accounts ?? {}) as Record<string, SavedAccount>;
-  const saved = (config ?? {}) as Record<string, string | undefined>;
+  const saved = (config ?? {}) as SavedAuthConfig;
   const auth = { ...flat };
   if (flat.bitbucket) auth.bitbucket = { ...flat.bitbucket, user: saved.bitbucketUser ?? "" };
   if (flat.confluence) auth.confluence = { ...flat.confluence, user: saved.confluenceEmail ?? "", site: saved.confluenceSite ?? "" };
