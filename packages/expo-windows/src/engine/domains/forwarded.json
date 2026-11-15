@@ -90,6 +90,7 @@
       "setSelectionPopover",
       "setCommandScrollZoom",
       "setLittleArdiaOpensNewTabLinks",
+      "setLinkRoutes",
       "setAutoPictureInPicture",
       "setBlockAutoplayEverywhere",
       "setFairPlayInChromium",
