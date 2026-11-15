@@ -432,29 +432,30 @@ for any app can also take the links you click and the addresses you type in Ardi
   `tab.opening` hooks run first, with the page's or bar's tab, window and profile, and a rewritten URL is placed again.
   The placement is one module, `state/airTraffic/inside.ts`, shared by typed addresses, routed clicks and the routes
   handed to pages.
-- **Clicks.** The page script (`packages/ardiacore/ios/page_script.js`, the one that handles Peek and Split clicks)
-  gets the inside rules as `{ spec, profile, open, group }` (`spec` is the parsed match pattern, `{ glob }` for a
-  wildcard, or `"any"`) with its config and the tab's profile, and native pushes new routes to every open page
+- **Clicks.** The page script (`packages/ardiacore/ios/page_script.js`, the one that handles Peek and Split clicks) gets
+  the inside rules as `{ spec, profile, open, group }` (`spec` is the parsed match pattern, `{ glob }` for a wildcard,
+  or `"any"`) with its config and the tab's profile, and native pushes new routes to every open page
   (`webView.setLinkRoutes`; JS sends them again when a rule, a profile or a group changes, and retries with backoff
   while the bridge refuses). Its `matchesSpec` is `lib/matchPattern.ts`'s `matchesUrl`, and for a wildcard the rule's
   own wildcard match (`platform/pageScriptPeek.test.mjs` runs the same cases through both). A wildcard with non-ASCII
-  characters on an IDN (`xn--`) host is left to the app, because the Unicode form of a host comes from `displayHost`
-  and its spoofing checks: the page routes the click and JS decides, opening it the click's own way when no rule
-  fits. After the page's own click handlers (a late window listener, so a click the page prevented stays the
-  page's; when a page handler stops the click's propagation before it reaches the window, as React's root does,
-  a one-off listener added last on each node of the click's path, from the target up to the document, catches it on
-  the node where it stopped, and all of them go once one routes, the window listener runs or the click's turn ends),
-  a trusted plain, ⌘-, ⇧- or ⌘⇧-click on an `http(s)` link the first route sends elsewhere is prevented before
-  Chrome navigates, and the page posts `route`. Native accepts it only against the last real mouse-up over that page
-  (the check Peek uses), takes the disposition from that mouse-up's keys (none: a foreground tab, or the rule's window
-  or Little Ardia; ⌘: a background tab; ⇧: a window; ⌘⇧: a foreground tab; the Peek or Split key: nothing) and emits
-  `openWindow` with `routed`, `keyed` and whether the link opens a tab (`target=_blank`). ⌘ and ⇧ decide a tab or a
-  window ahead of the rule's `open`, so a ⌘- or ⇧-click to the page's own profile with no group is left to Chrome. JS
-  places it (`state/tabs/openFromPage.ts`); if the rules changed in between and the link no longer routes, it performs
-  the click's own open. A plain click native refuses is followed in the page as it would have gone; a refused ⌘- or
-  ⇧-click opens nothing. Links inside frames route on ⌘- and ⇧-clicks and on plain clicks that open a tab or the whole
-  page; a plain click on a named target (`target`, `<base target>`) stays Chrome's. A matching route beats the tab's
-  Peek links to other sites. A page back from the back-forward cache gets the current routes with its `peekHello`.
+  characters on an IDN (`xn--`) host is left to the app, because the Unicode form of a host comes from `displayHost` and
+  its spoofing checks: the page routes the click and JS decides, opening it the click's own way when no rule fits. After
+  the page's own click handlers (a late window listener, so a click the page prevented stays the page's; when a page
+  handler stops the click's propagation before it reaches the window, as React's root does, a one-off listener added
+  last on each node of the click's path, from the target up to the document, catches it on the node where it stopped,
+  and all of them go once one routes, the window listener runs or the click's turn ends), a trusted plain, ⌘-, ⇧- or
+  ⌘⇧-click on an `http(s)` link the first route sends elsewhere is prevented before Chrome navigates, and the page posts
+  `route`. Native accepts it only against the last real mouse-up over that page (the check Peek uses), takes the
+  disposition from that mouse-up's keys (none: a foreground tab, or the rule's window or Little Ardia; ⌘: a background
+  tab; ⇧: a window; ⌘⇧: a foreground tab; the Peek or Split key: nothing) and emits `openWindow` with `routed`, `keyed`
+  and whether the link opens a tab (`target=_blank`). ⌘ and ⇧ decide a tab or a window ahead of the rule's `open`, so a
+  ⌘- or ⇧-click to the page's own profile with no group is left to Chrome. JS places it (`state/tabs/openFromPage.ts`);
+  if the rules changed in between and the link no longer routes, it performs the click's own open, except that a click
+  that would replace its page does nothing once that page has navigated (another click, say, while a `tab.opening` hook
+  was still answering) or closed. A plain click native refuses is followed in the page as it would have gone; a refused
+  ⌘- or ⇧-click opens nothing. Links inside frames route on ⌘- and ⇧-clicks and on plain clicks that open a tab or the
+  whole page; a plain click on a named target (`target`, `<base target>`) stays Chrome's. A matching route beats the
+  tab's Peek links to other sites. A page back from the back-forward cache gets the current routes with its `peekHello`.
 - **Not routed, by design:** a click the page prevented, a click a page handler stopped with
   `stopImmediatePropagation()` or stopped in the capture phase (before it reaches the link), a click stopped or
   prevented by a handler the page adds while that same click is being dispatched (the page script decides when the

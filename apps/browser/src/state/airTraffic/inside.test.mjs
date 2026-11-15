@@ -271,6 +271,24 @@ test("a newer navigation in the source tab cancels a routed click still waiting 
   }
 });
 
+test("a plain routed click whose page Chromium navigated while tab.opening waited never lands on that newer page", async () => {
+  const { w, source, personal } = fresh([(wk) => rule({ when: site("example.net"), profileId: wk })]);
+  let release;
+  setOpeningGate((url) => (url.startsWith("https://example.net/slow") ? new Promise((resolve) => (release = () => resolve({ url: "https://plain.example/rewritten" }))) : null));
+  try {
+    openFromPage({ url: "https://example.net/slow", disposition: "foreground", opens: "page", userGesture: true, routed: true, keyed: false }, { windowId: w, tabId: source, profileId: personal });
+    await tick();
+    S().updateTab(source, { url: "https://newer.example/" });
+    release();
+    await tick();
+    assert.equal(S().tabs[source].url, "https://newer.example/");
+    assert.notEqual(S().tabs[source].page.nav?.url, "https://plain.example/rewritten");
+    assert.equal(tabsAt("https://plain.example/rewritten").length, 0);
+  } finally {
+    setOpeningGate(null);
+  }
+});
+
 test("a routed address or a plain routed click still waiting on tab.opening opens nothing once its source is gone", async () => {
   const { work, w, source, personal } = fresh([(wk) => rule({ when: site("example.net"), profileId: wk })]);
   const waiting = [];

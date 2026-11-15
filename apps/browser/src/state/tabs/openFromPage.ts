@@ -1,4 +1,5 @@
 import { discardOffered, type OpenWindowRequest } from "../../platform/tabs";
+import { withoutFragment } from "../../lib/url";
 import { openWindow } from "../browser/actions";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { engineProfile } from "../browser/model";
@@ -19,7 +20,7 @@ import { currentAirTraffic } from "../airTraffic/store";
 
 export type { OpenWindowRequest } from "../../platform/tabs";
 
-type PageRef = { windowId: string; profileId: string; tabId?: string };
+type PageRef = { windowId: string; profileId: string; tabId?: string; shownUrl?: string };
 
 const UNGATED = new Set(["current", "peek", "incognito"]);
 
@@ -28,14 +29,15 @@ export function openFromPage(request: OpenWindowRequest, page: PageRef) {
   if (UNGATED.has(request.disposition) || !isGatedUrl(request.url)) return openNow(request, page, false);
   const key = request.routed && request.opens !== "tab" && request.disposition === "foreground" && page.tabId ? `tab:${page.tabId}` : null;
   const gated = gateOpening(request.url, { tabId: page.tabId ?? null, windowId: page.windowId, profileId: page.profileId, via: "link" }, key);
+  const source = key && page.tabId ? { ...page, shownUrl: useBrowser.getState().tabs[page.tabId]?.url ?? "" } : page;
   settleOpening(gated, key, (verdict) => {
     if (verdict && "cancel" in verdict) {
       if (request.adoptId) void discardOffered(request.adoptId).catch(() => false);
       return;
     }
-    if (!verdict) return openNow(request, page, true);
+    if (!verdict) return openNow(request, source, true);
     const adoptId = asAdoptId(request.adoptId);
-    if (!adoptId) return openNow({ ...request, url: verdict.url }, page, true);
+    if (!adoptId) return openNow({ ...request, url: verdict.url }, source, true);
     openNow(request, page, true);
     const s = useBrowser.getState();
     const tabId = Object.keys(s.tabs).find((id) => {
@@ -112,6 +114,7 @@ function openRoutedLink(s: BrowserState, request: OpenWindowRequest, page: PageR
     return openAtPlacement(placement, { url, how, from, gated, via: "link" });
   }
   const pageUrl = page.tabId ? (s.tabs[page.tabId]?.url ?? "") : "";
+  if (page.shownUrl !== undefined && withoutFragment(pageUrl) !== withoutFragment(page.shownUrl)) return;
   if (how === "foreground" && !request.keyed && request.opens !== "tab" && page.tabId && w.kind === "main" && peeksLinksToOtherSites(s, page.tabId) && leavesSite(url, pageUrl)) {
     return void s.openPeek(page.tabId, url, request.point ?? null, { landing: siteLanding(pageUrl, "source") });
   }
