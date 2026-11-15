@@ -1062,7 +1062,9 @@
     const routeFor = (url) => {
       for (let i = 0; i < linkRoutes.length; i++) {
         const route = linkRoutes[i];
-        if (route && matchesSpec(route.spec, url)) return route;
+        const match = route ? matchesSpec(route.spec, url) : false;
+        if (match === DEFERRED) return DEFERRED;
+        if (match) return route;
       }
       return null;
     };
@@ -1078,6 +1080,7 @@
     const routed = (url, keyed) => {
       const route = routeFor(url);
       if (!route) return false;
+      if (route === DEFERRED) return true;
       const here = route.profile === null || route.profile === ownProfile;
       if (!here) return true;
       if ((keyed || route.open === "tab") && !route.group) return false;
@@ -1193,7 +1196,6 @@
         if (moved > PRESS_SLOP) return trace("moved too far", { url: hit.url, moved });
         if (key === "site") {
           if (selecting()) return trace("the click belongs to a selection", { url: hit.url });
-          if (routed(hit.url, false)) return trace("the link is routed", { url: hit.url });
           siteClick = { link: hit.link, stamp: timeStamp(e) };
           return;
         }

@@ -789,7 +789,7 @@ const WILDCARDS = [
   ["github.com/ardia/*", ["https://github.com/ardia/x?q=1", "https://github.com/ARDIA/y", "https://github.com/other/x", "https://www.github.com/ardia/x"]],
   ["*.example.com", ["https://www.example.com/", "https://example.com/", "https://www.example.com.evil.test/"]],
   ["*/docs/a%20b*", ["https://example.com/docs/a b/c", "https://example.com/docs/ab"]],
-  ["*bücher*", ["https://bücher.example/x", "https://xn--other-zwa.example/", "https://bucher.example/x"]],
+  ["*bücher*", ["https://bücher.example/x", "https://café.example/", "https://bucher.example/x"]],
 ];
 
 test("the page script matches a wildcard route as an Air Traffic Control rule does, and defers a Unicode wildcard on an IDN host to the app", () => {
@@ -921,6 +921,28 @@ test("a route wins over links to other sites: the click is routed, not peeked", 
   assert.ok(click.defaultPrevented);
   env.gesture([env.link("https://elsewhere.example/")], {});
   assert.deepEqual(peeks(env).map((p) => p.url), ["https://elsewhere.example/"]);
+});
+
+test("a ruled link a page handler rewrites to an unruled other site still peeks", () => {
+  const env = environment();
+  env.handlers.peekConfig(siteConfig());
+  routing(env, [route("*://work.example/*")]);
+  const a = env.link("https://work.example/story");
+  const click = env.gesture([a], {}, { on: [[a, () => a.setAttribute("href", "https://other.example/story")]] });
+  assert.equal(routes(env).length, 0);
+  assert.deepEqual(peeks(env).map((p) => p.url), ["https://other.example/story"]);
+  assert.ok(click.defaultPrevented);
+});
+
+test("a Unicode wildcard the page can't decide hands the click to the app, even ahead of a route to the page's own profile", () => {
+  const env = environment();
+  routing(env, [
+    { spec: { glob: wildcardGlob("*bücher*") }, profile: "personal", open: "tab", group: null },
+    route("*://xn--caf-dma.example/*"),
+  ]);
+  const click = env.gesture([env.link("https://café.example/")], {});
+  assert.deepEqual(routes(env).map((r) => r.url), ["https://xn--caf-dma.example/"]);
+  assert.ok(click.defaultPrevented);
 });
 
 test("a page handler that stops the click's propagation still has it routed, once, wherever it sits on the path", () => {
