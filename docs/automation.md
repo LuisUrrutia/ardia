@@ -425,13 +425,13 @@ for any app can also take the links you click and the addresses you type in Ardi
   Everything Else choice has none. Inside Ardia only those rules count, in order, and the first one that fits a link
   decides: when its destination differs from where the link is, the link opens there and the page or tab it came from
   stays as it was; otherwise the link behaves as it always did. Where it already is: the rule's profile is the page's
-  own (`null` means the page's own profile here) and it opens as a plain tab; or it is Little Ardia and the page is in
-  a Little Ardia window of that profile; or it is a tab group that holds the page's tab; or the page's own address
-  already fits the same rule (so the links inside a site a window or Little Ardia rule opened stay there). Private
-  windows never route, and nothing routes into one. hooks.json `link.opening` hooks don't apply inside Ardia;
-  `tab.opening` hooks run first, with the page's or bar's tab, window and profile, and a rewritten URL is placed again.
-  The placement is one module, `state/airTraffic/inside.ts`, shared by typed addresses, routed clicks and the routes
-  handed to pages.
+  own (`null` means the page's own profile here) and it opens as a plain tab; or it is Little Ardia and the page is in a
+  Little Ardia window of that profile; or it is a tab group that holds the page's tab; or the page's own address already
+  fits the same rule (so the links inside a site a window or Little Ardia rule opened stay there). Private windows never
+  route, and nothing routes into one. hooks.json `link.opening` hooks don't apply inside Ardia; `tab.opening` hooks run
+  first, with the page's or bar's tab, window and profile, and a rewritten URL is placed again; a plain click its rule
+  leaves in its page is a same-tab click and asks no hook. The placement is one module, `state/airTraffic/inside.ts`,
+  shared by typed addresses, routed clicks and the routes handed to pages.
 - **Clicks.** The page script (`packages/ardiacore/ios/page_script.js`, the one that handles Peek and Split clicks) gets
   the inside rules as `{ spec, profile, open, group }` (`spec` is the parsed match pattern, `{ glob }` for a wildcard,
   or `"any"`) with its config and the tab's profile, and native pushes new routes to every open page

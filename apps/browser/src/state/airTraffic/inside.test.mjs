@@ -250,6 +250,23 @@ test("a typed address goes through tab.opening first with where it was typed: a 
   }
 });
 
+test("a plain click its rule leaves in the page never asks tab.opening, as an unrouted same-tab click doesn't", async () => {
+  const { work, w, source, personal } = fresh();
+  const group = S().groupTabs([source], { pinned: false });
+  store.resetAirTrafficForTests({ rules: [rule({ when: site("example.net"), profileId: personal, groupKey: S().groups[group].pinKey ?? group })], fallback: null });
+  const asked = [];
+  setOpeningGate((url) => (asked.push(url), { cancel: true }));
+  try {
+    openFromPage({ url: "https://example.net/stay", disposition: "foreground", opens: "page", userGesture: true, routed: true, keyed: false }, { windowId: w, tabId: source, profileId: personal });
+    await tick();
+    assert.deepEqual(asked, []);
+    assert.equal(S().tabs[source].page.nav?.url, "https://example.net/stay");
+    assert.equal(Object.values(S().tabs).some((t) => t.profileId === work), false);
+  } finally {
+    setOpeningGate(null);
+  }
+});
+
 test("a newer navigation in the source tab cancels a routed click still waiting on tab.opening", async () => {
   const { w, source, personal } = fresh([(wk) => rule({ when: site("example.net"), profileId: wk })]);
   let release;

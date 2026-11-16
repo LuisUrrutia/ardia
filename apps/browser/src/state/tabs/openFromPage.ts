@@ -28,6 +28,7 @@ export function openFromPage(request: OpenWindowRequest, page: PageRef) {
   if (request.linkWait) noteLinkTabWait(request.linkWait);
   if (UNGATED.has(request.disposition) || !isGatedUrl(request.url)) return openNow(request, page, false);
   const key = request.routed && request.opens !== "tab" && request.disposition === "foreground" && page.tabId ? `tab:${page.tabId}` : null;
+  if (key && !placeInside(useBrowser.getState(), currentAirTraffic(), request.url, page, !!request.keyed)) return openNow(request, page, true);
   const gated = gateOpening(request.url, { tabId: page.tabId ?? null, windowId: page.windowId, profileId: page.profileId, via: "link" }, key);
   const source = key && page.tabId ? { ...page, shownUrl: useBrowser.getState().tabs[page.tabId]?.url ?? "" } : page;
   settleOpening(gated, key, (verdict) => {
