@@ -13,8 +13,8 @@ import { Group, PaneIntro, Row, SectionHeader } from "../Form";
 import { AppPicker, CLOSED_GROUP, conditionLabel, fromLabel, GroupPicker, OPEN_LABELS, OPEN_OPTIONS, profileOptions, RuleSheet, USED_LAST } from "./AirTrafficSheet";
 
 const USUAL = "usual";
-const GROUP_GONE = "Its tab group is gone, so links open as a plain tab in this profile. Edit it to pick another.";
-const FALLBACK_GROUP_GONE = "The tab group is gone, so these links open as a plain tab in this profile. Pick another.";
+const GROUP_CLOSED = "Its tab group isn't open, so links open as a plain tab in this profile. Edit it to pick another.";
+const FALLBACK_GROUP_CLOSED = "That tab group isn't open, so these links open as a plain tab in this profile. Pick another.";
 
 function targetLabel(target: AirTrafficTarget, profiles: RoutableProfile[], groupName: string | null): string | null {
   const profile = target.profileId === null ? USED_LAST : profiles.find((p) => p.id === target.profileId)?.name;
@@ -24,12 +24,13 @@ function targetLabel(target: AirTrafficTarget, profiles: RoutableProfile[], grou
 
 function ruleProblem(target: string | null, groupGone: boolean): string | null {
   if (!target) return "Its profile is gone, so this rule is skipped. Edit it to pick another.";
-  return groupGone ? GROUP_GONE : null;
+  return groupGone ? GROUP_CLOSED : null;
 }
 
 export function AirTrafficPane() {
-  const { rules } = useAirTrafficConfig();
+  const { rules, fallback } = useAirTrafficConfig();
   const profiles = useRoutableProfiles();
+  const fallbackOpensTabIn = fallback?.open === "tab" ? profiles.find((p) => p.id === fallback.profileId) : undefined;
   return (
     <View>
       <PaneIntro>
@@ -49,7 +50,7 @@ export function AirTrafficPane() {
       <SectionHeader anchor="airTraffic.fallback" description={null} />
       <Group of="airTraffic.fallback">
         <FallbackRow profiles={profiles} />
-        <FallbackGroupRow />
+        {fallbackOpensTabIn ? <FallbackGroupRow /> : null}
       </Group>
 
       <HooksSection />
@@ -109,7 +110,7 @@ function FallbackGroupRow() {
   if (!fallback?.profileId || fallback.open !== "tab") return null;
   const groupGone = !!fallback.groupKey && !groupName;
   return (
-    <Row anchor="airTraffic.fallbackGroup" description={groupGone ? FALLBACK_GROUP_GONE : null}>
+    <Row anchor="airTraffic.fallbackGroup" description={groupGone ? FALLBACK_GROUP_CLOSED : null}>
       <GroupPicker profileId={fallback.profileId} value={fallback.groupKey ?? ""} onChange={(groupKey) => setAirTrafficFallback({ ...fallback, groupKey: groupKey || undefined })} />
     </Row>
   );
