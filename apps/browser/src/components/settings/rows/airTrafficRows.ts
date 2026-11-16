@@ -23,6 +23,11 @@ export const airTrafficRows = {
           description: "Where links open when no rule or hook decides.",
           keywords: ["everything else", "fallback", "otherwise", "air traffic control", "links from other apps"],
         },
+        fallbackGroup: {
+          title: "Tab group",
+          description: "The tab group links no rule catches join, when they open as a new tab in a profile.",
+          keywords: ["everything else", "fallback", "tab group", "group"],
+        },
       },
     },
     {

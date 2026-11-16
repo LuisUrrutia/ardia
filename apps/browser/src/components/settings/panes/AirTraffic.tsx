@@ -49,6 +49,7 @@ export function AirTrafficPane() {
       <SectionHeader anchor="airTraffic.fallback" description={null} />
       <Group of="airTraffic.fallback">
         <FallbackRow profiles={profiles} />
+        <FallbackGroupRow />
       </Group>
 
       <HooksSection />
@@ -91,18 +92,25 @@ function RuleRow({ rule, index, last, profiles }: { rule: AirTrafficRule; index:
 
 function FallbackRow({ profiles }: { profiles: RoutableProfile[] }) {
   const { fallback } = useAirTrafficConfig();
-  const groupName = useRouteGroupName(fallback?.profileId ?? null, fallback?.groupKey);
-  const groupGone = !!fallback?.profileId && !!fallback.groupKey && !groupName;
   const options: Option<string>[] = [{ value: USUAL, title: "Ardia's usual routing" }, ...profileOptions(profiles).map((o, i) => ({ ...o, separatorBefore: i <= 1 }))];
   const value = !fallback ? USUAL : (fallback.profileId ?? "");
   const pick = (choice: string) => setAirTrafficFallback(choice === USUAL ? null : { profileId: choice || null, open: fallback?.open ?? "tab", ...(choice === fallback?.profileId && fallback.groupKey ? { groupKey: fallback.groupKey } : {}) });
   return (
-    <Row anchor="airTraffic.fallback" description={fallback ? (groupGone ? FALLBACK_GROUP_GONE : null) : "They open as Settings › General says, in the profile you used last."}>
+    <Row anchor="airTraffic.fallback" description={fallback ? null : "They open as Settings › General says, in the profile you used last."}>
       <PopUp value={value} options={options} onChange={pick} minWidth={180} />
       {fallback ? <PopUp value={fallback.open} options={OPEN_OPTIONS} onChange={(open) => setAirTrafficFallback({ ...fallback, open })} /> : null}
-      {fallback?.profileId && fallback.open === "tab" ? (
-        <GroupPicker profileId={fallback.profileId} value={fallback.groupKey ?? ""} onChange={(groupKey) => setAirTrafficFallback({ ...fallback, groupKey: groupKey || undefined })} />
-      ) : null}
+    </Row>
+  );
+}
+
+function FallbackGroupRow() {
+  const { fallback } = useAirTrafficConfig();
+  const groupName = useRouteGroupName(fallback?.profileId ?? null, fallback?.groupKey);
+  if (!fallback?.profileId || fallback.open !== "tab") return null;
+  const groupGone = !!fallback.groupKey && !groupName;
+  return (
+    <Row anchor="airTraffic.fallbackGroup" description={groupGone ? FALLBACK_GROUP_GONE : null}>
+      <GroupPicker profileId={fallback.profileId} value={fallback.groupKey ?? ""} onChange={(groupKey) => setAirTrafficFallback({ ...fallback, groupKey: groupKey || undefined })} />
     </Row>
   );
 }
