@@ -418,7 +418,7 @@ the data dir (`air-traffic.json`, version 2: an ordered `rules` list and a `fall
   and comes back). The link opens as a tab in the group's copy in the window shown last, or in a new window of that
   profile when the group is parked (a pinned group whose window closed), and the group expands if it was collapsed.
   A rule (or Everything Else) whose group no longer exists in that profile still applies: the link opens as a plain tab
-  in the rule's profile, and its row in Settings says the group is gone. A copy of the group in a window that is closing
+  in the rule's profile, and its row in Settings says the group isn't open. A copy of the group in a window that is closing
   doesn't count. The parser drops a `groupKey` without a profile or with another `open`, so the rule keeps working as a
   plain tab.
 - **No approval.** The user makes these rules in Settings, so they count as approved. hooks.json route hooks still need
