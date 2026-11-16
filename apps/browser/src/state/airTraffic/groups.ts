@@ -1,6 +1,7 @@
 import type { BrowserState } from "../browser/store";
 import { pinKeyOf } from "../browser/model";
 import { groupLabel } from "../pins/tabGrouping";
+import { isOpenRegularWindow } from "../windows/small";
 
 type GroupWorld = Pick<BrowserState, "groups" | "parkedPins" | "tabs">;
 
@@ -42,7 +43,7 @@ export function routeGroupName(s: GroupWorld, profileId: string, key: string): s
 }
 
 export function groupWindow(s: BrowserState, profileId: string, key: string): string | undefined {
-  const copies = Object.values(s.groups).filter((g) => g.profileId === profileId && pinKeyOf(g) === key);
+  const copies = Object.values(s.groups).filter((g) => g.profileId === profileId && pinKeyOf(g) === key && isOpenRegularWindow(s.windows[g.windowId]));
   const order = [...new Set([...s.ui.focusOrder, ...s.windowOrder])];
   return order.find((id) => copies.some((g) => g.windowId === id)) ?? copies[0]?.windowId;
 }

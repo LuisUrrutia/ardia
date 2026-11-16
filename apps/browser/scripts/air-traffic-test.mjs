@@ -7,7 +7,7 @@ import { launch, session, sleep } from "../../../scripts/lib/instance.mjs";
 const appArg = process.argv.slice(2).find((a) => !a.startsWith("--"));
 if (!appArg) {
   console.error("usage: node air-traffic-test.mjs <Debug Ardia.app>");
-  console.error("Checks Air Traffic Control in a hidden instance: a link from another app (a real GURL Apple Event) joins the collapsed tab group its rule names and opens it, and a rule whose group is gone falls through to the next one.");
+  console.error("Checks Air Traffic Control in a hidden instance: a link from another app (a real GURL Apple Event) joins the collapsed tab group its rule names and opens it, and a rule whose group is gone opens a plain tab in its profile, in a window that is already open.");
   process.exit(2);
 }
 const app = resolve(appArg);
@@ -48,7 +48,7 @@ try {
     const key = ac.store.getState().groups[g].pinKey ?? g;
     ac.airTraffic.addAirTrafficRule({ enabled: true, from: null, when: { kind: "site", host: "example.org" }, profileId: "work", open: "tab", groupKey: key });
     ac.airTraffic.addAirTrafficRule({ enabled: true, from: null, when: { kind: "site", host: "example.net" }, profileId: "work", open: "tab", groupKey: "gone" });
-    ac.airTraffic.addAirTrafficRule({ enabled: true, from: null, when: { kind: "site", host: "example.net" }, profileId: "work", open: "window" });
+    ac.airTraffic.addAirTrafficRule({ enabled: true, from: null, when: { kind: "site", host: "example.net" }, profileId: "default", open: "window" });
     s.activate("t1");
     return g;`);
   await sleep(1000);
@@ -61,12 +61,14 @@ try {
   });
   record("a link from another app joins the rule's tab group and opens it", grouped?.ok, grouped);
 
-  execFileSync(gurl, [String(inst.pid), "https://example.net/fallthrough"], { timeout: 15000 });
-  const fell = await until(async () => {
-    const [tab] = await tabsAt("https://example.net/fallthrough");
-    return { ok: !!tab && tab.profileId === "work" && tab.groups.length === 0 && tab.windowKind === "main", tab };
+  const windowsBefore = await inst.eval(`return Object.keys(ac.store.getState().windows).length;`);
+  execFileSync(gurl, [String(inst.pid), "https://example.net/plain"], { timeout: 15000 });
+  const plain = await until(async () => {
+    const [tab] = await tabsAt("https://example.net/plain");
+    const windows = await inst.eval(`return Object.keys(ac.store.getState().windows).length;`);
+    return { ok: !!tab && tab.profileId === "work" && tab.groups.length === 0 && tab.windowKind === "main" && windows === windowsBefore, tab, windows, windowsBefore };
   });
-  record("a rule whose tab group is gone is skipped for the next rule that fits", fell?.ok, fell);
+  record("a rule whose tab group is gone opens a plain tab in its profile, and the next rule doesn't take the link", plain?.ok, plain);
 } finally {
   await inst.quit();
   rmSync(root, { recursive: true, force: true });

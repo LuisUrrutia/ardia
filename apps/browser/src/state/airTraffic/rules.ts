@@ -76,9 +76,13 @@ export function linkMatches(when: LinkCondition, url: string): boolean {
 
 export const appMatches = (from: SourceApp | null, source: LinkSource) => !from || sourceMatches([from.bundleId ?? from.name], source);
 
-const targetUsable = (target: AirTrafficTarget, usable: TargetUsable) => target.profileId === null || usable(target.profileId, target.groupKey ?? null);
+const targetUsable = (target: AirTrafficTarget, usable: TargetUsable) => target.profileId === null || usable(target.profileId, null);
 
-const targetOf = (target: AirTrafficTarget): AirTrafficTarget => ({ profileId: target.profileId, open: target.open, ...(target.groupKey ? { groupKey: target.groupKey } : {}) });
+const targetOf = (target: AirTrafficTarget, usable: TargetUsable): AirTrafficTarget => ({
+  profileId: target.profileId,
+  open: target.open,
+  ...(target.groupKey && target.profileId !== null && usable(target.profileId, target.groupKey) ? { groupKey: target.groupKey } : {}),
+});
 
 export function cleanTarget(target: AirTrafficTarget): AirTrafficTarget {
   const { profileId, open, groupKey } = target;
@@ -97,11 +101,11 @@ export function airTrafficRule(config: AirTrafficConfig, url: string, source: Li
   const index = config.rules.findIndex((r) => r.enabled && appMatches(r.from, source) && linkMatches(r.when, url) && targetUsable(r, usable));
   if (index < 0) return null;
   const rule = config.rules[index]!;
-  return { by: "rule", rule, index, target: targetOf(rule) };
+  return { by: "rule", rule, index, target: targetOf(rule, usable) };
 }
 
 export function airTrafficFallback(config: AirTrafficConfig, usable: TargetUsable): AirTrafficMatch | null {
-  return config.fallback && targetUsable(config.fallback, usable) ? { by: "fallback", target: targetOf(config.fallback) } : null;
+  return config.fallback && targetUsable(config.fallback, usable) ? { by: "fallback", target: targetOf(config.fallback, usable) } : null;
 }
 
 export const airTrafficHolds = (config: AirTrafficConfig) => !!config.fallback || config.rules.some((r) => r.enabled);

@@ -7,7 +7,8 @@ const rules = await import("./rules.ts");
 const sources = await import("./sourceApps.ts");
 const store = await import("./store.ts");
 const { previewLink } = await import("./preview.ts");
-const { routeTargetsStamp } = await import("./groups.ts");
+const { groupWindow, routeTargetsStamp } = await import("./groups.ts");
+const { startClosingWindow, stopClosingWindow } = await import("../windows/closingWindows.ts");
 const { decideLink, traceLink } = await import("../automation/decisions.ts");
 const { reloadHooks } = await import("../automation/hookRules.ts");
 const { approveRule, resetApprovalsForTests } = await import("../automation/approvals.ts");
@@ -299,9 +300,10 @@ test("a tab group needs a profile opened as a tab; the parser and the store both
   assert.ok(!("groupKey" in store.useAirTraffic.getState().config.rules[0]));
 });
 
-test("a rule whose tab group is gone falls through like one whose profile is gone, and a group rule routes with its key", () => {
+test("a rule whose tab group is gone opens a plain tab in its profile, and a group rule routes with its key", () => {
   const work = fresh({ rules: [(w) => rule({ profileId: w, groupKey: "missing" }), (w) => rule({ profileId: w, open: "window" })] });
-  assert.equal(verdictOf(decideLink("https://a.example/", MAIL)), `${work}:window`);
+  assert.deepEqual(decideLink("https://a.example/", MAIL), { profileId: work, open: "tab", windowId: null, groupKey: null });
+  assert.deepEqual([previewLink("a.example", MAIL).profileName, previewLink("a.example", MAIL).groupName], ["Work", null]);
   const w = S().createWindow({ url: "https://inbox.example/", profileId: work });
   const group = S().groupTabs([S().windows[w].tabIds[0]], { name: "Inbox" });
   const key = S().groups[group].pinKey ?? group;
@@ -335,6 +337,38 @@ test("a link from another app with a group rule joins the group's copy in the wi
   const [again] = tabsAt("https://mail.example/2");
   const copy = Object.values(S().groups).find((g) => (g.pinKey ?? g.id) === key);
   assert.ok(again && copy?.tabIds.includes(again.id), "a parked pinned group comes back in a new window and takes the link");
+});
+
+test("Everything Else with a tab group routes into it, and opens a plain tab in its profile once the group is gone", () => {
+  const work = fresh({ fallback: (w) => ({ profileId: w, open: "tab", groupKey: "missing" }) });
+  assert.deepEqual(decideLink("https://a.example/", MAIL), { profileId: work, open: "tab", windowId: null, groupKey: null });
+  const w = S().createWindow({ url: "https://inbox.example/", profileId: work });
+  const group = S().groupTabs([S().windows[w].tabIds[0]], { name: "Inbox" });
+  const key = S().groups[group].pinKey ?? group;
+  store.setAirTrafficFallback({ profileId: work, open: "tab", groupKey: key });
+  assert.deepEqual(decideLink("https://a.example/", MAIL), { profileId: work, open: "tab", windowId: null, groupKey: key });
+});
+
+test("with the group in two windows the link joins the one shown last, and never one that is closing", () => {
+  const work = fresh();
+  const first = S().createWindow({ url: "https://inbox.example/", profileId: work });
+  const second = S().createWindow({ url: "https://other.example/", profileId: work });
+  const inFirst = S().groupTabs([S().windows[first].tabIds.find((id) => S().tabs[id].profileId === work)], { name: "Inbox", pinned: false });
+  const key = S().groups[inFirst].pinKey ?? inFirst;
+  const inSecond = S().groupTabs([S().windows[second].tabIds.find((id) => S().tabs[id].profileId === work)], { name: "Inbox", pinned: false });
+  useBrowser.setState((s) => ({ groups: { ...s.groups, [inSecond]: { ...s.groups[inSecond], pinKey: key } }, ui: { ...s.ui, focusOrder: [first, second] } }));
+  assert.equal(groupWindow(S(), work, key), first);
+  useBrowser.setState((s) => ({ ui: { ...s.ui, focusOrder: [second, first] } }));
+  assert.equal(groupWindow(S(), work, key), second);
+  startClosingWindow(second);
+  try {
+    assert.equal(groupWindow(S(), work, key), first);
+    startClosingWindow(first);
+    assert.equal(groupWindow(S(), work, key), undefined);
+  } finally {
+    stopClosingWindow(first);
+    stopClosingWindow(second);
+  }
 });
 
 test("the routing targets' stamp changes when a profile or one of its tab groups appears, is renamed or goes away", () => {

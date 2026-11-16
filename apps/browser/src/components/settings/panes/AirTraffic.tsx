@@ -13,6 +13,8 @@ import { Group, PaneIntro, Row, SectionHeader } from "../Form";
 import { AppPicker, CLOSED_GROUP, conditionLabel, fromLabel, GroupPicker, OPEN_LABELS, OPEN_OPTIONS, profileOptions, RuleSheet, USED_LAST } from "./AirTrafficSheet";
 
 const USUAL = "usual";
+const GROUP_GONE = "Its tab group is gone, so links open as a plain tab in this profile. Edit it to pick another.";
+const FALLBACK_GROUP_GONE = "The tab group is gone, so these links open as a plain tab in this profile. Pick another.";
 
 function targetLabel(target: AirTrafficTarget, profiles: RoutableProfile[], groupName: string | null): string | null {
   const profile = target.profileId === null ? USED_LAST : profiles.find((p) => p.id === target.profileId)?.name;
@@ -22,7 +24,7 @@ function targetLabel(target: AirTrafficTarget, profiles: RoutableProfile[], grou
 
 function ruleProblem(target: string | null, groupGone: boolean): string | null {
   if (!target) return "Its profile is gone, so this rule is skipped. Edit it to pick another.";
-  return groupGone ? "Its tab group is gone, so this rule is skipped. Edit it to pick another." : null;
+  return groupGone ? GROUP_GONE : null;
 }
 
 export function AirTrafficPane() {
@@ -89,11 +91,13 @@ function RuleRow({ rule, index, last, profiles }: { rule: AirTrafficRule; index:
 
 function FallbackRow({ profiles }: { profiles: RoutableProfile[] }) {
   const { fallback } = useAirTrafficConfig();
+  const groupName = useRouteGroupName(fallback?.profileId ?? null, fallback?.groupKey);
+  const groupGone = !!fallback?.profileId && !!fallback.groupKey && !groupName;
   const options: Option<string>[] = [{ value: USUAL, title: "Ardia's usual routing" }, ...profileOptions(profiles).map((o, i) => ({ ...o, separatorBefore: i <= 1 }))];
   const value = !fallback ? USUAL : (fallback.profileId ?? "");
   const pick = (choice: string) => setAirTrafficFallback(choice === USUAL ? null : { profileId: choice || null, open: fallback?.open ?? "tab", ...(choice === fallback?.profileId && fallback.groupKey ? { groupKey: fallback.groupKey } : {}) });
   return (
-    <Row anchor="airTraffic.fallback" description={fallback ? null : "They open as Settings › General says, in the profile you used last."}>
+    <Row anchor="airTraffic.fallback" description={fallback ? (groupGone ? FALLBACK_GROUP_GONE : null) : "They open as Settings › General says, in the profile you used last."}>
       <PopUp value={value} options={options} onChange={pick} minWidth={180} />
       {fallback ? <PopUp value={fallback.open} options={OPEN_OPTIONS} onChange={(open) => setAirTrafficFallback({ ...fallback, open })} /> : null}
       {fallback?.profileId && fallback.open === "tab" ? (
