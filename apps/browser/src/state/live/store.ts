@@ -373,13 +373,10 @@ export function unhide(folderId: string) {
 }
 
 export const accountOf = (profileId: string, source: LiveSourceId): LiveAccount | undefined => live().accounts[profileId]?.[source];
-
 export const setAccount = (profileId: string, source: LiveSourceId, account: LiveAccount | null) =>
   setLive((s) => ({ accounts: { ...s.accounts, [profileId]: account ? { ...s.accounts[profileId], [source]: account } : without({ ...s.accounts[profileId] }, source) } }));
-
 export const setLegacyAccount = (source: LiveSourceId, account: LegacyAccount | null) =>
   setLive((s) => ({ legacyAccounts: account ? { ...s.legacyAccounts, [source]: account } : without(s.legacyAccounts, source) }));
-
 export const removeProfileAccounts = (profileId: string) => setLive((s) => (s.accounts[profileId] ? { accounts: without(s.accounts, profileId) } : {}));
 
 export const updateConfig = (patch: Partial<LiveConfig>) => setLive((s) => ({ config: { ...s.config, ...patch } }));
