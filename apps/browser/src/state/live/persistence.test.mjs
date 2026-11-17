@@ -61,3 +61,16 @@ test("when two durable saves fail together, the retry writes the newer one", asy
   context.mock.timers.tick(800);
   assert.deepEqual(Object.keys(JSON.parse(docs.get("live.json")).accounts), ["work", "home"]);
 });
+
+test("a debounced save after a durable one still writes a document equal to an earlier one", async (context) => {
+  context.mock.timers.enable({ apis: ["setTimeout"] });
+  const binding = createLivePersistence();
+  const before = { accounts: {} };
+  const connected = { accounts: { work: { github: { login: "work" } } } };
+  binding.changed(before, before);
+  context.mock.timers.tick(800);
+  await binding.saveDurably(connected);
+  binding.changed(connected, before);
+  context.mock.timers.tick(800);
+  assert.deepEqual(JSON.parse(docs.get("live.json")).accounts, {});
+});

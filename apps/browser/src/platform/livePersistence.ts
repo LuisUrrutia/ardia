@@ -74,6 +74,7 @@ export function createLivePersistence(onSave?: (changed: boolean, kind?: "write"
       timer = undefined;
       pending = undefined;
       latest = projection;
+      lastSaved = undefined;
       return saveDocument(DOC, versionedJson(projection, DOC_VERSION)).catch((error: unknown) => {
         pending = latest;
         timer ??= setTimeout(save, 800);
