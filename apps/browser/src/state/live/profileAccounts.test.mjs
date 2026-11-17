@@ -513,7 +513,7 @@ test("usage counts say how many accounts were connected, how many beside another
   assert.equal(counts.live_account_connects_beside_another_profile, 2);
   assert.equal(counts.live_legacy_account_copy_refusals, 1);
   assert.equal(counts.live_legacy_account_copies, 1);
-  assert.deepEqual(takeLiveFolderCounts(), { ...counts, live_account_connects: 0, live_account_connects_beside_another_profile: 0, live_legacy_account_copies: 0, live_legacy_account_copy_refusals: 0 });
+  assert.deepEqual(takeLiveFolderCounts(), Object.fromEntries(Object.keys(counts).map((count) => [count, 0])));
 });
 
 test("an old account whose keychain item couldn't be read at first is copied by a later refresh once it can", async () => {
@@ -558,13 +558,13 @@ test("folders of two profiles refreshing together each fetch with their own prof
   const { createFolder } = await import("./store.ts");
   setAccount(personal, "github", legacyAccount("LuisUrrutia"));
   setAccount(work, "github", legacyAccount("luis-urrutia-flute"));
-  keychainItems.set(`github:${personal}`, "personal-token");
-  keychainItems.set(`github:${work}`, "work-token");
+  keychainItems.set(`github:${personal}`, "personal-shared-fetch-token");
+  keychainItems.set(`github:${work}`, "work-shared-fetch-token");
   const personalFolder = createFolder(personal, "pullRequests", ["github"]);
   const workFolder = createFolder(work, "pullRequests", ["github"]);
   tokensAsked.length = 0;
 
   await Promise.all([refreshFolder(personalFolder), refreshFolder(workFolder)]);
 
-  assert.deepEqual([...new Set(tokensAsked)].sort(), ["personal-token", "work-token"]);
+  assert.deepEqual([...new Set(tokensAsked)].sort(), ["personal-shared-fetch-token", "work-shared-fetch-token"]);
 });
