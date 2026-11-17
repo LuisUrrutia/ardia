@@ -207,18 +207,18 @@ test("rows asking whether their pull request is open read the tab list once, not
   assert.equal(scans, 1);
 });
 
-test("folders in different profiles refreshing at once share one fetch per service, and each lists the pull requests", async () => {
-  const ids = ["p1", "p2", "p3"].map((profile) => createFolder(profile, "pullRequests", ["github"]));
+test("folders of one profile refreshing at once share one fetch per service, and another profile's folder fetches with its own account", async () => {
+  const ids = ["p1", "p1", "p1", "p2"].map((profile) => createFolder(profile, "pullRequests", ["github"]));
   const { fetch } = SOURCES.github;
   let calls = 0;
   SOURCES.github.fetch = async () => (calls++, [pr("shared", 1, "one", "main")]);
   try {
     await Promise.all(ids.map(refreshFolder));
-    assert.equal(calls, 1);
+    assert.equal(calls, 2);
     for (const id of ids) assert.deepEqual(live().items[id].map((it) => it.id), ["shared"]);
     updateFolder(ids[2], { filters: { authored: true, reviewRequests: false } });
     await Promise.all(ids.map(refreshFolder));
-    assert.equal(calls, 3);
+    assert.equal(calls, 5);
   } finally {
     SOURCES.github.fetch = fetch;
     ids.forEach(removeFolder);

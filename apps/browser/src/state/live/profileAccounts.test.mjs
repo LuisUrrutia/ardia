@@ -552,3 +552,19 @@ test("a profile created after the move first failed to read the old keychain ite
   assert.equal(live().accounts[after]?.notion, undefined);
   assert.equal(keychainItems.has(`notion:${after}`), false);
 });
+
+test("folders of two profiles refreshing together each fetch with their own profile's account", async () => {
+  const { refreshFolder } = await import("./engine.ts");
+  const { createFolder } = await import("./store.ts");
+  setAccount(personal, "github", legacyAccount("LuisUrrutia"));
+  setAccount(work, "github", legacyAccount("luis-urrutia-flute"));
+  keychainItems.set(`github:${personal}`, "personal-token");
+  keychainItems.set(`github:${work}`, "work-token");
+  const personalFolder = createFolder(personal, "pullRequests", ["github"]);
+  const workFolder = createFolder(work, "pullRequests", ["github"]);
+  tokensAsked.length = 0;
+
+  await Promise.all([refreshFolder(personalFolder), refreshFolder(workFolder)]);
+
+  assert.deepEqual([...new Set(tokensAsked)].sort(), ["personal-token", "work-token"]);
+});
