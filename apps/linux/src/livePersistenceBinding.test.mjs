@@ -110,26 +110,7 @@ test("Linux binding keeps a folder's hidden repos and their pull requests throug
 });
 
 
-test("Linux save telemetry describes queued intent on failure and does not recount retries", async () => {
-  const { createLivePersistence } = await import("./livePersistence.ts");
-  const activity = [];
-  const binding = createLivePersistence((changed, kind) => activity.push({ changed, kind }));
-  let current;
-  binding.start((state) => { current = state; });
-  await new Promise((resolve) => setImmediate(resolve));
-  const before = structuredClone(payload);
-  failCommit = true;
-  try {
-    binding.changed(current, { ...current, calendar: { ...current.calendar, showPreview: !current.calendar.showPreview } });
-    await new Promise((resolve) => setImmediate(resolve));
-    assert.deepEqual(payload, before);
-    assert.deepEqual(activity, [{ changed: true, kind: "intent" }]);
-  } finally { failCommit = false; }
-  await flushLinuxDocuments();
-  assert.notEqual(payload.calendar.showPreview, before.calendar.showPreview);
-  assert.equal(activity.length, 1);
-  binding.changed(current, current);
-  assert.deepEqual(activity.at(-1), { changed: false, kind: "intent" });
+
 test("Linux binding saves each profile's accounts and the old account durably, and says so when the document drops one", async () => {
   await liveDocumentLoaded;
   const octo = { login: "octo", name: null, avatar: null, connectedAt: 1 };
@@ -192,4 +173,26 @@ test("a window that starts closing while the old account is being copied keeps t
   assert.deepEqual(forgotten, ["notion"]);
   assert.equal(payload.accounts.default.notion.login, "octo");
   assert.equal(payload.legacyAccounts.notion, undefined);
+});
+
+test("Linux save telemetry describes queued intent on failure and does not recount retries", async () => {
+  const { createLivePersistence } = await import("./livePersistence.ts");
+  const activity = [];
+  const binding = createLivePersistence((changed, kind) => activity.push({ changed, kind }));
+  let current;
+  binding.start((state) => { current = state; });
+  await new Promise((resolve) => setImmediate(resolve));
+  const before = structuredClone(payload);
+  failCommit = true;
+  try {
+    binding.changed(current, { ...current, calendar: { ...current.calendar, showPreview: !current.calendar.showPreview } });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(payload, before);
+    assert.deepEqual(activity, [{ changed: true, kind: "intent" }]);
+  } finally { failCommit = false; }
+  await flushLinuxDocuments();
+  assert.notEqual(payload.calendar.showPreview, before.calendar.showPreview);
+  assert.equal(activity.length, 1);
+  binding.changed(current, current);
+  assert.deepEqual(activity.at(-1), { changed: false, kind: "intent" });
 });
