@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { after, test } from "node:test";
 import { docs, failedSaves, heldKeychainReads, heldKeychainWrites, heldSaves, keychainItems, keychainRefusals } from "../../test-native/index.ts";
 
 const legacyAccount = (login) => ({ login, name: null, avatar: null, connectedAt: 1 });
@@ -27,6 +27,9 @@ const { adoptLegacyAccounts, connectConfluence, connectGithub, connectGoogle, di
 const { live, setAccount, setLegacyAccount, updateConfig } = await import("./store.ts");
 const { settingsBrowserWindow } = await import("../settings/settingsWindows.ts");
 const { takeLiveFolderCounts } = await import("../telemetry/liveFolders.ts");
+const telemetry = await import("../telemetry/client.ts");
+telemetry.setSharing(true, "settings");
+after(() => telemetry.setSharing(false, "settings"));
 
 const personal = useBrowser.getState().createProfile({ name: "Personal" });
 const work = useBrowser.getState().createProfile({ name: "Work" });

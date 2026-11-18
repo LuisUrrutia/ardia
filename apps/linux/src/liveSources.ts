@@ -4,6 +4,9 @@ import { useBrowser } from "../../browser/src/state/browser/store";
 import { accountOf, live, removeProfileAccounts, saveLiveDurably, setAccount, setLegacyAccount } from "../../browser/src/state/live/store";
 import { LiveError, type CompletionState, type LiveAccount, type LiveFolder, type LiveItem, type LiveSourceId } from "../../browser/src/state/live/types";
 import { noteLiveFolders } from "../../browser/src/state/telemetry/liveFolders";
+import { consentToken } from "../../browser/src/state/telemetry/client";
+import { warnFor } from "../../browser/src/state/telemetry/consoleConsent";
+import type { ConsentToken } from "../../browser/src/state/telemetry/choice";
 import { hostLiveClient, type LiveClient } from "./hostLive.ts";
 import { liveDocumentLoaded, liveDurability } from "./livePersistence.ts";
 
@@ -136,7 +139,7 @@ export function linuxLiveSources(client: LiveClient, { loaded = new Promise<void
     return result;
   }
 
-  function connectAs<T>(profileId: string, source: LiveSourceId, call: () => Promise<T>, accountFrom: (reply: T) => LiveAccount | null): Promise<T> {
+  function connectAs<T>(profileId: string, source: LiveSourceId, call: () => Promise<T>, accountFrom: (reply: T) => LiveAccount | null, consent: ConsentToken | null): Promise<T> {
     return locked(source, profileId, async () => {
       if (!profileExists(profileId)) throw new LiveError("other", "This profile was deleted");
       const reply = await call();
@@ -149,8 +152,8 @@ export function linuxLiveSources(client: LiveClient, { loaded = new Promise<void
       const elsewhere = Object.entries(live().accounts).some(([id, accounts]) => id !== profileId && !!accounts[source]);
       const mark = durable.mark();
       setAccount(profileId, source, linked);
-      noteLiveFolders("live_account_connects");
-      if (elsewhere) noteLiveFolders("live_account_connects_beside_another_profile");
+      noteLiveFolders("live_account_connects", 1, consent);
+      if (elsewhere) noteLiveFolders("live_account_connects_beside_another_profile", 1, consent);
       await durable.save(mark).catch(() => {});
       return reply;
     });
@@ -161,10 +164,11 @@ export function linuxLiveSources(client: LiveClient, { loaded = new Promise<void
       const viewer = json.data?.viewer;
       if (!viewer) throw new LiveError("signedOut", "GitHub didn't accept the token");
       return account(viewer.login, viewer.name, viewer.avatarUrl);
-    });
+    }, consentToken());
   }
 
   async function startGithubDeviceFlow(profileId: string, clientId: string): Promise<DeviceFlow> {
+    const consent = consentToken();
     const code = await client.request<{ device_code: string; user_code: string; verification_uri: string; expires_in: number; interval: number }>("github", profileId, "deviceCode", { clientId });
     const abort = new AbortController();
     let interval = Math.max(code.interval, 1) * 1000;
@@ -185,7 +189,7 @@ export function linuxLiveSources(client: LiveClient, { loaded = new Promise<void
           if (reply?.status !== "connected") return null;
           if (!reply.viewer) throw new LiveError("signedOut", "GitHub didn't accept the token");
           return account(reply.viewer.login, reply.viewer.name, reply.viewer.avatarUrl);
-        });
+        }, consent);
         if (!reply) break;
         if (reply.status === "connected") return;
         if (reply.status === "slowDown") interval = (reply.interval ?? interval / 1000 + 5) * 1000;
@@ -201,6 +205,7 @@ export function linuxLiveSources(client: LiveClient, { loaded = new Promise<void
       "bitbucket",
       () => client.connect<{ account_id: string; display_name: string; links?: { avatar?: { href: string } } }>("bitbucket", profileId, { user: user.trim(), token: token.trim() }),
       (me) => ({ ...account(me.account_id, me.display_name, me.links?.avatar?.href ?? null), user: user.trim() }),
+      consentToken(),
     );
   }
 
@@ -210,6 +215,7 @@ export function linuxLiveSources(client: LiveClient, { loaded = new Promise<void
       "notion",
       () => client.connect<{ name?: string; bot?: { workspace_name?: string } }>("notion", profileId, { token: token.trim() }),
       (me) => account(me.bot?.workspace_name ?? me.name ?? "Notion", me.bot?.workspace_name ?? null, null),
+      consentToken(),
     );
   }
 
@@ -220,6 +226,7 @@ export function linuxLiveSources(client: LiveClient, { loaded = new Promise<void
       "confluence",
       () => client.connect<{ accountId: string; displayName: string }>("confluence", profileId, { site: base, email: email.trim(), token: token.trim() }),
       (me) => ({ ...account(me.accountId, me.displayName, null), user: email.trim(), site: base }),
+      consentToken(),
     );
   }
 
@@ -229,6 +236,7 @@ export function linuxLiveSources(client: LiveClient, { loaded = new Promise<void
       "gdrive",
       () => client.connect<{ about: { user?: { displayName: string; emailAddress: string; photoLink?: string } } | null }>("gdrive", profileId, { clientId, clientSecret, code, verifier, redirectUri }),
       ({ about }) => ({ ...account(about?.user?.emailAddress ?? "Google Drive", about?.user?.displayName ?? null, about?.user?.photoLink ?? null), clientId }),
+      consentToken(),
     );
   }
 
@@ -270,8 +278,9 @@ export function linuxLiveSources(client: LiveClient, { loaded = new Promise<void
   let adoption: Promise<void> = Promise.resolve();
 
   function adoptLegacyAccounts(profileIds: string[]): Promise<void> {
-    const run = () => (locks ? locks.request("ardia.linux.live.adoption", () => adopt(profileIds)) : adopt(profileIds));
-    adoption = adoption.then(run).catch((error) => console.warn("Couldn't move live folder accounts to profiles", error));
+    const consent = consentToken();
+    const run = () => (locks ? locks.request("ardia.linux.live.adoption", () => adopt(profileIds, consent)) : adopt(profileIds, consent));
+    adoption = adoption.then(run).catch((error) => warnFor(consent, "Couldn't move live folder accounts to profiles", error));
     return adoption;
   }
 
@@ -293,14 +302,14 @@ export function linuxLiveSources(client: LiveClient, { loaded = new Promise<void
     return owed ? retry : Promise.resolve();
   }
 
-  function copyLegacy(source: LiveSourceId, profileId: string, legacy: LiveAccount, granted: string[]): Promise<boolean> {
+  function copyLegacy(source: LiveSourceId, profileId: string, legacy: LiveAccount, granted: string[], consent: ConsentToken | null): Promise<boolean> {
     return locked(source, profileId, async () => {
       const owed = live().legacyAccounts[source]?.owedTo;
       if (owed && !owed.includes(profileId)) return true;
       if (!profileExists(profileId)) return removed(source, profileId);
       const outcome = await client.adoptLegacy(source, profileId).catch(() => null);
       if (outcome === null) {
-        noteLiveFolders("live_legacy_account_copy_refusals");
+        noteLiveFolders("live_legacy_account_copy_refusals", 1, consent);
         return false;
       }
       if (outcome === "missing") return false;
@@ -311,12 +320,12 @@ export function linuxLiveSources(client: LiveClient, { loaded = new Promise<void
       if (!profileExists(profileId)) return removed(source, profileId);
       setAccount(profileId, source, legacy);
       granted.push(profileId);
-      noteLiveFolders("live_legacy_account_copies");
+      noteLiveFolders("live_legacy_account_copies", 1, consent);
       return true;
     });
   }
 
-  async function adopt(profileIds: string[]) {
+  async function adopt(profileIds: string[], consent: ConsentToken | null) {
     for (const source of Object.keys(live().legacyAccounts) as LiveSourceId[]) {
       const found = live().legacyAccounts[source];
       if (!found) continue;
@@ -333,7 +342,7 @@ export function linuxLiveSources(client: LiveClient, { loaded = new Promise<void
       const { owedTo = profileIds, ...legacy } = live().legacyAccounts[source]!;
       const stillOwed: string[] = [];
       const granted: string[] = [];
-      for (const profileId of owedTo) if (!(await copyLegacy(source, profileId, legacy, granted))) stillOwed.push(profileId);
+      for (const profileId of owedTo) if (!(await copyLegacy(source, profileId, legacy, granted, consent))) stillOwed.push(profileId);
       const current = live().legacyAccounts[source]?.owedTo;
       const stillListed = (ids: string[]) => (current ? ids.filter((id) => current.includes(id)) : ids);
       const remaining = stillListed(stillOwed);

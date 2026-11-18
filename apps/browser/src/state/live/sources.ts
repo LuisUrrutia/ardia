@@ -5,6 +5,9 @@ import { useBrowser } from "../browser/store";
 import { accountOf, live, removeProfileAccounts, saveLiveDurably, setAccount, setLegacyAccount } from "./store";
 import { LiveError, type CompletionState, type LiveAccount, type LiveFolder, type LiveItem, type LiveSourceId } from "./types";
 import { noteLiveFolders } from "../telemetry/liveFolders";
+import { consentToken } from "../telemetry/client";
+import { warnFor } from "../telemetry/consoleConsent";
+import type { ConsentToken } from "../telemetry/choice";
 
 export type LiveSource = {
   id: LiveSourceId;
@@ -177,28 +180,33 @@ function locked<T>(source: LiveSourceId, profileId: string, work: () => Promise<
   return result;
 }
 
-function saveConnection(profileId: string, source: LiveSourceId, value: string, connected: LiveAccount) {
+function saveConnection(profileId: string, source: LiveSourceId, value: string, connected: LiveAccount, consent: ConsentToken | null) {
   return locked(source, profileId, async () => {
     if (!profileExists(profileId)) throw new LiveError("other", "This profile was deleted");
     if (!(await setSecret(source, profileId, value))) throw new LiveError("other", "Couldn't save to the keychain");
     if (!profileExists(profileId)) return void (await deleteSecret(source, profileId));
     const elsewhere = Object.entries(live().accounts).some(([id, accounts]) => id !== profileId && !!accounts[source]);
     setAccount(profileId, source, connected);
-    noteLiveFolders("live_account_connects");
-    if (elsewhere) noteLiveFolders("live_account_connects_beside_another_profile");
+    noteLiveFolders("live_account_connects", 1, consent);
+    if (elsewhere) noteLiveFolders("live_account_connects_beside_another_profile", 1, consent);
     await saveLiveDurably().catch(() => {});
   });
 }
 
-export async function connectGithub(profileId: string, token: string) {
+export function connectGithub(profileId: string, token: string) {
+  return connectGithubWith(profileId, token, consentToken());
+}
+
+async function connectGithubWith(profileId: string, token: string, consent: ConsentToken | null) {
   const viewer = await githubClient.viewer(token.trim());
   if (!viewer) throw new LiveError("signedOut", "GitHub didn't accept the token");
-  await saveConnection(profileId, "github", token.trim(), account(viewer.login, viewer.name, viewer.avatarUrl));
+  await saveConnection(profileId, "github", token.trim(), account(viewer.login, viewer.name, viewer.avatarUrl), consent);
 }
 
 export type DeviceFlow = { userCode: string; verificationUri: string; expiresAt: number; done: Promise<void>; cancel(): void };
 
 export async function startGithubDeviceFlow(profileId: string, clientId: string): Promise<DeviceFlow> {
+  const consent = consentToken();
   const code = await request<{ device_code: string; user_code: string; verification_uri: string; expires_in: number; interval: number }>(
     `${endpoints.githubWeb}/login/device/code`,
     { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: form({ client_id: clientId, scope: "repo read:org" }) },
@@ -215,7 +223,7 @@ export async function startGithubDeviceFlow(profileId: string, clientId: string)
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: form({ client_id: clientId, device_code: code.device_code, grant_type: "urn:ietf:params:oauth:grant-type:device_code" }),
       });
-      if (json.access_token) return connectGithub(profileId, json.access_token);
+      if (json.access_token) return connectGithubWith(profileId, json.access_token, consent);
       if (json.error === "slow_down") interval = (json.interval ?? interval / 1000 + 5) * 1000;
       else if (json.error && json.error !== "authorization_pending") throw new LiveError("signedOut", json.error === "access_denied" ? "Access was denied" : json.error);
     }
@@ -225,26 +233,30 @@ export async function startGithubDeviceFlow(profileId: string, clientId: string)
 }
 
 export async function connectBitbucket(profileId: string, user: string, token: string) {
+  const consent = consentToken();
   const me = await request<{ account_id: string; display_name: string; links?: { avatar?: { href: string } } }>(`${endpoints.bitbucket}/user`, {
     headers: { Authorization: basic(user.trim(), token.trim()) },
   });
-  await saveConnection(profileId, "bitbucket", token.trim(), { ...account(me.account_id, me.display_name, me.links?.avatar?.href ?? null), user: user.trim() });
+  await saveConnection(profileId, "bitbucket", token.trim(), { ...account(me.account_id, me.display_name, me.links?.avatar?.href ?? null), user: user.trim() }, consent);
 }
 
 export async function connectNotion(profileId: string, token: string) {
+  const consent = consentToken();
   const me = await request<{ name?: string; bot?: { workspace_name?: string } }>(`${endpoints.notion}/users/me`, { headers: notionHeaders(token.trim()) });
-  await saveConnection(profileId, "notion", token.trim(), account(me.bot?.workspace_name ?? me.name ?? "Notion", me.bot?.workspace_name ?? null, null));
+  await saveConnection(profileId, "notion", token.trim(), account(me.bot?.workspace_name ?? me.name ?? "Notion", me.bot?.workspace_name ?? null, null), consent);
 }
 
 export async function connectConfluence(profileId: string, site: string, email: string, token: string) {
+  const consent = consentToken();
   const base = site.trim().replace(/\/+$/, "").replace(/^(?!https?:\/\/)/, "https://");
   const me = await request<{ accountId: string; displayName: string }>(`${endpoints.confluence(base)}/wiki/rest/api/user/current`, {
     headers: { Authorization: basic(email.trim(), token.trim()) },
   });
-  await saveConnection(profileId, "confluence", token.trim(), { ...account(me.accountId, me.displayName, null), user: email.trim(), site: base });
+  await saveConnection(profileId, "confluence", token.trim(), { ...account(me.accountId, me.displayName, null), user: email.trim(), site: base }, consent);
 }
 
 export async function connectGoogle(profileId: string, clientId: string, clientSecret: string, code: string, verifier: string, redirectUri: string) {
+  const consent = consentToken();
   const json = await request<{ access_token: string; refresh_token?: string; expires_in: number }>(endpoints.googleToken, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -255,7 +267,7 @@ export async function connectGoogle(profileId: string, clientId: string, clientS
   const about = await request<{ user?: { displayName: string; emailAddress: string; photoLink?: string } }>(`${endpoints.drive}/about?fields=user`, {
     headers: { Authorization: `Bearer ${json.access_token}` },
   }).catch(() => null);
-  await saveConnection(profileId, "gdrive", JSON.stringify(tokens), { ...account(about?.user?.emailAddress ?? "Google Drive", about?.user?.displayName ?? null, about?.user?.photoLink ?? null), clientId });
+  await saveConnection(profileId, "gdrive", JSON.stringify(tokens), { ...account(about?.user?.emailAddress ?? "Google Drive", about?.user?.displayName ?? null, about?.user?.photoLink ?? null), clientId }, consent);
 }
 
 export function disconnect(profileId: string, source: LiveSourceId) {
@@ -279,7 +291,8 @@ export function forgetMissingProfiles(previous: string[] = []) {
 }
 
 export function adoptLegacyAccounts(profileIds: string[]): Promise<void> {
-  adoption = adoption.then(() => adopt(profileIds)).catch((error) => console.warn("Couldn't move live folder accounts to profiles", error));
+  const consent = consentToken();
+  adoption = adoption.then(() => adopt(profileIds, consent)).catch((error) => warnFor(consent, "Couldn't move live folder accounts to profiles", error));
   return adoption;
 }
 
@@ -310,7 +323,7 @@ function withClientId(tokens: string, clientId: string | undefined): string {
   }
 }
 
-function copyLegacy(source: LiveSourceId, profileId: string, value: string, legacy: LiveAccount): Promise<boolean> {
+function copyLegacy(source: LiveSourceId, profileId: string, value: string, legacy: LiveAccount, consent: ConsentToken | null): Promise<boolean> {
   return locked(source, profileId, async () => {
     const owed = live().legacyAccounts[source]?.owedTo;
     if (owed && !owed.includes(profileId)) return true;
@@ -320,17 +333,17 @@ function copyLegacy(source: LiveSourceId, profileId: string, value: string, lega
       if (accountOf(profileId, source)) return true;
       if (existing !== value) return false;
     } else if (!(await setSecret(source, profileId, value))) {
-      noteLiveFolders("live_legacy_account_copy_refusals");
+      noteLiveFolders("live_legacy_account_copy_refusals", 1, consent);
       return false;
     }
     if (!profileExists(profileId)) return deleteSecret(source, profileId);
     setAccount(profileId, source, legacy);
-    noteLiveFolders("live_legacy_account_copies");
+    noteLiveFolders("live_legacy_account_copies", 1, consent);
     return true;
   });
 }
 
-async function adopt(profileIds: string[]) {
+async function adopt(profileIds: string[], consent: ConsentToken | null) {
   for (const source of Object.keys(live().legacyAccounts) as LiveSourceId[]) {
     if (!live().legacyAccounts[source]!.owedTo) setLegacyAccount(source, { ...live().legacyAccounts[source]!, owedTo: profileIds });
     const record = live().legacyAccounts[source]!;
@@ -342,7 +355,7 @@ async function adopt(profileIds: string[]) {
     const { owedTo = profileIds, ...legacy } = record;
     const value = source === "gdrive" ? withClientId(saved, legacy.clientId) : saved;
     const stillOwed: string[] = [];
-    for (const profileId of owedTo) if (!(await copyLegacy(source, profileId, value, legacy))) stillOwed.push(profileId);
+    for (const profileId of owedTo) if (!(await copyLegacy(source, profileId, value, legacy, consent))) stillOwed.push(profileId);
     const current = live().legacyAccounts[source]?.owedTo;
     const stillListed = (ids: string[]) => (current ? ids.filter((id) => current.includes(id)) : ids);
     const remaining = stillListed(stillOwed);

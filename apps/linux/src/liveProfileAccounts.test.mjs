@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { after, test } from "node:test";
 import { failedSaves } from "../../browser/src/test-native/index.ts";
 import { LiveError } from "../../browser/src/state/live/types.ts";
 
 const { useBrowser } = await import("../../browser/src/state/browser/store.ts");
 const { live, setAccount, setLegacyAccount } = await import("../../browser/src/state/live/store.ts");
 const { takeLiveFolderCounts } = await import("../../browser/src/state/telemetry/liveFolders.ts");
+const telemetry = await import("../../browser/src/state/telemetry/client.ts");
+telemetry.setSharing(true, "settings");
+after(() => telemetry.setSharing(false, "settings"));
 const { linuxLiveSources } = await import("./liveSources.ts");
 
 const personal = useBrowser.getState().createProfile({ name: "Personal" });

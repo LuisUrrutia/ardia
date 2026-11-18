@@ -20,8 +20,8 @@ export type LiveFolderCount = keyof typeof NONE;
 
 let counts = { ...NONE };
 
-export function noteLiveFolders(count: LiveFolderCount, by = 1) {
-  counts[count] += by;
+export function noteLiveFolders(count: LiveFolderCount, by = 1, consent?: ConsentToken | null) {
+  countFor(consent, () => void (counts[count] += by), { [count]: by });
 }
 
 export function noteLiveRepoMenuPick(choice: string, showNewRepos: boolean) {
@@ -31,7 +31,7 @@ export function noteLiveRepoMenuPick(choice: string, showNewRepos: boolean) {
 }
 
 export function noteLiveFolderColorPick(consent?: ConsentToken | null) {
-  countFor(consent, () => noteLiveFolders("live_folder_color_picks"), { live_folder_color_picks: 1 });
+  noteLiveFolders("live_folder_color_picks", 1, consent);
 }
 
 export function takeLiveFolderCounts() {
